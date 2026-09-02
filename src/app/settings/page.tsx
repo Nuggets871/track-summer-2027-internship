@@ -1,8 +1,10 @@
 import { getSettings } from "@/lib/data/settings";
+import { getProfile } from "@/lib/data/profile";
 import { prisma } from "@/lib/prisma";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GeneralSettingsForm } from "@/components/settings/general-settings-form";
 import { ScoringSettingsForm } from "@/components/settings/scoring-settings-form";
+import { ProfileSettingsForm } from "@/components/settings/profile-settings-form";
 import { PipelineStagesManager } from "@/components/settings/pipeline-stages-manager";
 import { DataBackupPanel } from "@/components/settings/data-backup-panel";
 import { ThemeSettingsCard } from "@/components/settings/theme-settings-card";
@@ -10,8 +12,9 @@ import { ThemeSettingsCard } from "@/components/settings/theme-settings-card";
 export const metadata = { title: "Paramètres" };
 
 export default async function SettingsPage() {
-  const [settings, countries, stages] = await Promise.all([
+  const [settings, profile, countries, stages] = await Promise.all([
     getSettings(),
+    getProfile(),
     prisma.country.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" }, orderBy: { order: "asc" } }),
   ]);
@@ -26,6 +29,7 @@ export default async function SettingsPage() {
       <Tabs defaultValue="general">
         <TabsList className="flex-wrap">
           <TabsTrigger value="general">Général</TabsTrigger>
+          <TabsTrigger value="profile">Profil & Matching</TabsTrigger>
           <TabsTrigger value="appearance">Apparence</TabsTrigger>
           <TabsTrigger value="scoring">Relances & scoring</TabsTrigger>
           <TabsTrigger value="statuses">Statuts</TabsTrigger>
@@ -33,6 +37,9 @@ export default async function SettingsPage() {
         </TabsList>
         <TabsContent value="general">
           <GeneralSettingsForm settings={settings} countryOptions={countries} />
+        </TabsContent>
+        <TabsContent value="profile">
+          <ProfileSettingsForm profile={profile} matchWeights={settings.matchWeights} />
         </TabsContent>
         <TabsContent value="appearance">
           <ThemeSettingsCard />
