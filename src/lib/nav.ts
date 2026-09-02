@@ -1,4 +1,4 @@
-import { Home, Briefcase, Sparkles, User, Settings, type LucideIcon } from "lucide-react";
+import { Home, Telescope, Briefcase, Sparkles, User, Settings, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -6,10 +6,12 @@ export type NavItem = {
   icon: LucideIcon;
 };
 
-// Deliberately short: the whole app is Home → Opportunities → AI Assistant →
-// Profile, plus Settings. Everything else lives inside these four pages.
+// Deliberately short: Home → Discover → Opportunities → AI Assistant →
+// Profile, plus Settings. Discover earns its slot because it's a real
+// feature (real sources, real listings) — see src/lib/discover.
 export const NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/", icon: Home },
+  { label: "Discover", href: "/discover", icon: Telescope },
   { label: "Opportunities", href: "/opportunities", icon: Briefcase },
   { label: "AI Assistant", href: "/assistant", icon: Sparkles },
   { label: "Profile", href: "/profile", icon: User },
