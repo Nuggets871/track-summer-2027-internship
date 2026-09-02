@@ -24,11 +24,18 @@ function revalidateDiscover() {
 // --- Sources ----------------------------------------------------------
 
 const addSourceSchema = z.object({
-  type: z.enum(["GREENHOUSE", "LEVER", "RSS", "JSON_ENDPOINT", "CSV_URL"]),
+  type: z.enum(["GREENHOUSE", "LEVER", "RSS", "JSON_ENDPOINT", "CSV_URL", "ADZUNA", "JSEARCH", "REED", "JOOBLE"]),
   name: z.string().min(1, "Le nom est requis"),
   config: z.record(z.string(), z.unknown()),
 });
 
+/**
+ * Adds a source and runs its first sync. Some source types store an API key
+ * in `config` (Adzuna, JSearch, Reed, Jooble) — the return value is
+ * deliberately stripped of it (id/name/type/status only) since a server
+ * action's return value is sent to the browser like any other response;
+ * the Sources UI always re-fetches the safe projection afterwards anyway.
+ */
 export async function addJobSource(raw: z.infer<typeof addSourceSchema>) {
   const data = addSourceSchema.parse(raw);
 
@@ -52,7 +59,7 @@ export async function addJobSource(raw: z.infer<typeof addSourceSchema>) {
   await syncSource(source);
   revalidateDiscover();
   revalidatePath("/settings");
-  return source;
+  return { id: source.id, name: source.name, type: source.type, status: source.status };
 }
 
 export async function toggleJobSource(id: string, enabled: boolean) {

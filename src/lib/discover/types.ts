@@ -27,7 +27,17 @@ export type SourceHealthCheck = {
   jobCount?: number;
 };
 
-export type JobSourceType = "GREENHOUSE" | "LEVER" | "RSS" | "JSON_ENDPOINT" | "CSV_URL" | "MANUAL_IMPORT";
+export type JobSourceType =
+  | "GREENHOUSE"
+  | "LEVER"
+  | "RSS"
+  | "JSON_ENDPOINT"
+  | "CSV_URL"
+  | "MANUAL_IMPORT"
+  | "ADZUNA"
+  | "JSEARCH"
+  | "REED"
+  | "JOOBLE";
 
 export interface JobSourceProvider {
   readonly type: JobSourceType;

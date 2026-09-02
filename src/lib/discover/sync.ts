@@ -143,11 +143,14 @@ async function markMissingAsExpired(sourceId: string, seenSourceJobIds: Set<stri
   return missingIds.length;
 }
 
-/** Company-board sources (Greenhouse/Lever) list every open role, not just
- * internships — keep only what looks like one. Manual/CSV/JSON imports are
- * trusted as already curated by the user and kept as-is. */
+// Sources that list/search broadly (a whole company board, a generic feed,
+// or a keyword search over every job type) still need the internship filter
+// applied after fetching. Manual/CSV/JSON imports are trusted as already
+// curated by the user for this exact purpose and kept as-is.
+const BROAD_SOURCE_TYPES = new Set(["GREENHOUSE", "LEVER", "RSS", "ADZUNA", "JSEARCH", "REED", "JOOBLE"]);
+
 function keepOnlyInternships(sourceType: string, jobs: RawSourceJob[]): RawSourceJob[] {
-  if (sourceType !== "GREENHOUSE" && sourceType !== "LEVER") return jobs;
+  if (!BROAD_SOURCE_TYPES.has(sourceType)) return jobs;
   return jobs.filter((j) => looksLikeInternship(j.title, j.departmentOrTeam));
 }
 
