@@ -3,15 +3,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type QuickAddKind =
-  | "application"
-  | "company"
-  | "contact"
-  | "task"
-  | "note"
-  | "event"
-  | null;
-
 type UIState = {
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
@@ -19,12 +10,11 @@ type UIState = {
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
 
-  quickAdd: QuickAddKind;
-  openQuickAdd: (kind: Exclude<QuickAddKind, null>) => void;
-  closeQuickAdd: () => void;
-
-  focusMode: boolean;
-  setFocusMode: (v: boolean) => void;
+  // The single "+ Add" entry point: paste a job URL/description. There is
+  // deliberately only one thing to create from anywhere in the app.
+  addOpportunityOpen: boolean;
+  openAddOpportunity: () => void;
+  closeAddOpportunity: () => void;
 };
 
 export const useUIStore = create<UIState>()(
@@ -36,12 +26,9 @@ export const useUIStore = create<UIState>()(
       commandPaletteOpen: false,
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
 
-      quickAdd: null,
-      openQuickAdd: (kind) => set({ quickAdd: kind }),
-      closeQuickAdd: () => set({ quickAdd: null }),
-
-      focusMode: false,
-      setFocusMode: (v) => set({ focusMode: v }),
+      addOpportunityOpen: false,
+      openAddOpportunity: () => set({ addOpportunityOpen: true }),
+      closeAddOpportunity: () => set({ addOpportunityOpen: false }),
     }),
     { name: "internship-tracker-ui", partialize: (s) => ({ sidebarCollapsed: s.sidebarCollapsed }) },
   ),

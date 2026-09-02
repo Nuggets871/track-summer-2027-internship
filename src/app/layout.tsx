@@ -6,7 +6,6 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { QuickAddDialog } from "@/components/layout/quick-add-dialog";
-import { getReferenceData } from "@/lib/data/reference";
 import { getSearchIndex } from "@/lib/data/search-index";
 
 const geistSans = Geist({
@@ -25,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const [reference, searchIndex] = await Promise.all([getReferenceData(), getSearchIndex()]);
+  const searchIndex = await getSearchIndex();
 
   return (
     <html lang="fr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
@@ -39,7 +38,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </main>
           </div>
           <CommandPalette items={searchIndex} />
-          <QuickAddDialog reference={reference} />
+          <QuickAddDialog />
         </Providers>
       </body>
     </html>
