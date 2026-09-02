@@ -1,59 +1,6 @@
-// Thin, server-only wrapper around the DeepSeek API (OpenAI-compatible chat
-// completions). Used to make job-posting extraction more robust across the
-// wide variety of real-world page layouts, and to draft cover letters.
-//
-// This is entirely OPTIONAL: every caller must keep working with sensible,
-// deterministic fallbacks when DEEPSEEK_API_KEY isn't set or the call fails
-// (network error, timeout, quota) — per the app's "no paid cloud service
-// required" guarantee. Never call this from client code; it reads a secret
-// from process.env that must stay server-side.
+import { aiChat } from "@/lib/ai/provider";
 
-const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
-const REQUEST_TIMEOUT_MS = 20_000;
-
-export function isAiConfigured(): boolean {
-  return Boolean(process.env.DEEPSEEK_API_KEY);
-}
-
-async function callDeepSeek(messages: { role: "system" | "user"; content: string }[], jsonMode: boolean) {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) return null;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  try {
-    const res = await fetch(DEEPSEEK_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages,
-        temperature: 0.2,
-        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-      }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      console.error(`DeepSeek API error: ${res.status} ${res.statusText}`);
-      return null;
-    }
-    const data = await res.json();
-    const content: string | undefined = data?.choices?.[0]?.message?.content;
-    return content ?? null;
-  } catch (err) {
-    console.error("DeepSeek API call failed:", err instanceof Error ? err.message : err);
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-const EXTRACTION_SYSTEM_PROMPT = `Tu extrais des informations structurées à partir du texte brut d'une offre de stage/emploi.
+const SYSTEM_PROMPT = `Tu extrais des informations structurées à partir du texte brut d'une offre de stage/emploi.
 
 RÈGLES STRICTES :
 - N'extrais QUE ce qui est explicitement écrit dans le texte fourni.
@@ -108,28 +55,28 @@ export type AiExtractionResult = Partial<{
  * expected JSON shape — callers should always have a non-AI fallback ready.
  */
 export async function extractJobPostingWithAI(rawText: string): Promise<AiExtractionResult | null> {
-  if (!isAiConfigured() || !rawText.trim()) return null;
+  if (!rawText.trim()) return null;
 
-  const content = await callDeepSeek(
+  const content = await aiChat(
     [
-      { role: "system", content: EXTRACTION_SYSTEM_PROMPT },
+      { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: rawText.slice(0, 12_000) },
     ],
-    true,
+    { jsonMode: true, temperature: 0.1 },
   );
   if (!content) return null;
 
   try {
     const parsed = JSON.parse(content);
     if (typeof parsed !== "object" || parsed === null) return null;
-    return sanitizeAiExtraction(parsed as Record<string, unknown>);
+    return sanitize(parsed as Record<string, unknown>);
   } catch (err) {
-    console.error("Failed to parse DeepSeek extraction response:", err);
+    console.error("Failed to parse AI extraction response:", err);
     return null;
   }
 }
 
-function sanitizeAiExtraction(raw: Record<string, unknown>): AiExtractionResult {
+function sanitize(raw: Record<string, unknown>): AiExtractionResult {
   const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
   const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const strArray = (v: unknown): string[] =>
@@ -160,38 +107,4 @@ function sanitizeAiExtraction(raw: Record<string, unknown>): AiExtractionResult 
     deadline: isoDate(raw.deadline),
     contractType: str(raw.contractType),
   };
-}
-
-/**
- * Drafts a short, personalized cover-letter starting point from the
- * candidate's profile and the analyzed job. Always framed to the user as an
- * editable draft, never a final document. Returns null if AI isn't
- * configured or the call fails — the UI falls back to a template.
- */
-export async function generateCoverLetterDraftWithAI(input: {
-  companyName: string;
-  title: string;
-  matchedSkills: string[];
-  responsibilities: string | null;
-  profileSummary: string;
-}): Promise<string | null> {
-  if (!isAiConfigured()) return null;
-
-  const prompt = `Rédige un brouillon de lettre de motivation en français (environ 200 mots), pour ce stage :
-Entreprise : ${input.companyName}
-Poste : ${input.title}
-Compétences du candidat qui correspondent à l'offre : ${input.matchedSkills.join(", ") || "non précisées"}
-Responsabilités du poste : ${input.responsibilities ?? "non précisées"}
-Profil du candidat : ${input.profileSummary}
-
-Ton : professionnel, direct, sans formules toutes faites. Ne signe pas la lettre (pas de "Cordialement" + nom). C'est un premier brouillon que le candidat va personnaliser ensuite.`;
-
-  const content = await callDeepSeek(
-    [
-      { role: "system", content: "Tu aides à rédiger des brouillons de lettres de motivation pour des stages, en français, à personnaliser ensuite par le candidat." },
-      { role: "user", content: prompt },
-    ],
-    false,
-  );
-  return content;
 }
