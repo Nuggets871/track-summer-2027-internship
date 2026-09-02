@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { MapPin, Building2, Clock, Layers } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { matchLabel } from "@/lib/constants";
+import { formatDate } from "@/lib/utils";
 import type { DiscoverListingRow } from "@/lib/data/discover";
 
 const REMOTE_LABELS: Record<string, string> = { REMOTE: "Remote", HYBRID: "Hybride", ONSITE: "Sur site" };
@@ -15,18 +17,36 @@ function matchColor(score: number | null) {
   return "text-danger-foreground";
 }
 
-function timeAgo(date: Date | null): string | null {
-  if (!date) return null;
+// Deterministic — safe to compute during SSR since it never reads "now".
+function postedAbsolute(date: Date | null): string | null {
+  return date ? `Publiée le ${formatDate(date)}` : null;
+}
+
+// Reads Date.now(), so it can only be computed after mount: doing this
+// during render would make the server-rendered HTML ("il y a 2j") and the
+// client's first render ("il y a 3j", a moment later) disagree, which is
+// exactly the hydration-mismatch pattern Next.js warns about. The card
+// always paints the deterministic absolute date first and swaps to the
+// relative label once mounted — a harmless post-hydration content update.
+function timeAgo(date: Date): string {
   const days = Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
   if (days <= 0) return "Publiée aujourd'hui";
   if (days === 1) return "Publiée hier";
   if (days < 30) return `Publiée il y a ${days}j`;
-  return `Publiée le ${new Date(date).toLocaleDateString("fr-FR")}`;
+  return postedAbsolute(date)!;
 }
 
 export function DiscoverJobCard({ listing, onOpen }: { listing: DiscoverListingRow; onOpen: (id: string) => void }) {
   const location = [listing.cityName, listing.countryName].filter(Boolean).join(", ");
-  const posted = timeAgo(listing.postedAt);
+  const [posted, setPosted] = useState(() => postedAbsolute(listing.postedAt));
+
+  useEffect(() => {
+    if (!listing.postedAt) return;
+    // Deferred to a callback (rather than set directly in the effect body)
+    // so this only ever runs once hydration has settled, not as part of it.
+    const timer = setTimeout(() => setPosted(timeAgo(listing.postedAt!)), 0);
+    return () => clearTimeout(timer);
+  }, [listing.postedAt]);
 
   return (
     <Card

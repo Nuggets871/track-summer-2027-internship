@@ -28,7 +28,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     <html lang="fr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
-      <body className="flex h-dvh min-h-full overflow-hidden bg-background text-foreground">
+      {/* suppressHydrationWarning: some browser extensions (e.g. ColorZilla's
+          cz-shortcut-listen) inject attributes onto <body> before React
+          hydrates — a real mismatch React would otherwise warn about, but
+          one entirely outside the app's control. */}
+      <body className="flex h-dvh min-h-full overflow-hidden bg-background text-foreground" suppressHydrationWarning>
         <Providers>
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col">
