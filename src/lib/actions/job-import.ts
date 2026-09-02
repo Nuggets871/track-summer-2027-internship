@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { extractJobPostingFromHtml, extractJobPostingFromText, normalizeLanguageName, type ExtractedJobData } from "@/lib/job-extraction";
-import { extractJobPostingWithAI, generateCoverLetterDraftWithAI, isAiConfigured } from "@/lib/ai/deepseek";
+import { extractJobPostingWithAI } from "@/lib/ai/prompts/job-extraction";
+import { isAiConfigured } from "@/lib/ai/provider";
 import { computeJobMatch, computeEligibility, type MatchResult, type EligibilityResult } from "@/lib/job-matching";
 import { getProfile } from "@/lib/data/profile";
 import { getSettings } from "@/lib/data/settings";
-import { logInteraction } from "@/lib/data/timeline";
 const FETCH_TIMEOUT_MS = 12_000;
 
 export type DuplicateMatch = { id: string; title: string; companyName: string } | null;
@@ -96,13 +96,29 @@ function mergeAiIntoBaseline(baseline: ExtractedJobData, ai: Awaited<ReturnType<
   fillIfEmpty("deadline", ai.deadline);
   fillIfEmpty("contractType", ai.contractType);
   if (ai.requiredSkills?.length) {
-    merged.requiredSkills = [...new Set([...merged.requiredSkills, ...ai.requiredSkills])];
+    merged.requiredSkills = dedupeCaseInsensitive([...merged.requiredSkills, ...ai.requiredSkills]);
   }
   if (ai.requiredLanguages?.length) {
     const normalized = ai.requiredLanguages.map(normalizeLanguageName);
-    merged.requiredLanguages = [...new Set([...merged.requiredLanguages, ...normalized])];
+    merged.requiredLanguages = dedupeCaseInsensitive([...merged.requiredLanguages, ...normalized]);
   }
   return merged;
+}
+
+/** Case-insensitive de-duplication that keeps the first-seen casing (the
+ * heuristic/baseline extraction runs first, so its canonical casing wins
+ * over whatever variant the AI happens to return for the same skill). */
+function dedupeCaseInsensitive(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const key = value.trim().toLowerCase();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      result.push(value);
+    }
+  }
+  return result;
 }
 
 async function runMatchAndEligibility(extracted: ExtractedJobData) {
@@ -133,7 +149,7 @@ export async function analyzeJobUrl(url: string): Promise<AnalyzeOutcome> {
 
   let extracted = extractJobPostingFromHtml(html);
   let aiUsed = false;
-  if (isAiConfigured()) {
+  if (await isAiConfigured()) {
     const ai = await extractJobPostingWithAI(extracted.rawText);
     if (ai) {
       extracted = mergeAiIntoBaseline(extracted, ai);
@@ -157,7 +173,7 @@ export async function analyzeJobText(pastedText: string, url?: string): Promise<
 
   let extracted = extractJobPostingFromText(pastedText);
   let aiUsed = false;
-  if (isAiConfigured()) {
+  if (await isAiConfigured()) {
     const ai = await extractJobPostingWithAI(extracted.rawText);
     if (ai) {
       extracted = mergeAiIntoBaseline(extracted, ai);
@@ -192,8 +208,6 @@ const saveOpportunitySchema = z.object({
   notes: z.preprocess(emptyToNull, z.string().nullable().optional()),
   // "already applied" extras
   appliedAt: z.preprocess(emptyToNull, z.coerce.date().nullable().optional()),
-  cvDocumentId: z.preprocess(emptyToNull, z.string().nullable().optional()),
-  coverLetterDocumentId: z.preprocess(emptyToNull, z.string().nullable().optional()),
   nextAction: z.preprocess(emptyToNull, z.string().nullable().optional()),
   // analysis snapshot to persist alongside the application
   analysis: z.object({
@@ -251,7 +265,7 @@ export async function saveAnalyzedOpportunity(raw: SaveOpportunityInput) {
   }
 
   const stages = await prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" } });
-  const stageKey = data.action === "ALREADY_APPLIED" ? "SENT" : data.action === "PREPARE" ? "TO_PREPARE" : "TO_EXPLORE";
+  const stageKey = data.action === "ALREADY_APPLIED" ? "APPLIED" : data.action === "PREPARE" ? "PREPARING" : "SAVED";
   const stage = stages.find((s) => s.key === stageKey) ?? stages[0];
 
   const application = await prisma.$transaction(async (tx) => {
@@ -302,30 +316,11 @@ export async function saveAnalyzedOpportunity(raw: SaveOpportunityInput) {
       },
     });
 
-    if (data.action === "ALREADY_APPLIED" && (data.cvDocumentId || data.coverLetterDocumentId)) {
-      const ids = [data.cvDocumentId, data.coverLetterDocumentId].filter((id): id is string => !!id);
-      await tx.document.updateMany({ where: { id: { in: ids } }, data: { applicationId: created.id } });
-    }
-
-    await logInteraction(
-      {
-        type: "NOTE",
-        summary:
-          data.action === "ALREADY_APPLIED"
-            ? `Candidature importée depuis un lien — déjà envoyée${data.jobUrl ? ` (${data.jobUrl})` : ""}`
-            : `Opportunité importée depuis un lien${data.jobUrl ? ` (${data.jobUrl})` : ""}`,
-        applicationId: created.id,
-        companyId: created.companyId,
-      },
-      tx,
-    );
-
     return created;
   });
 
   revalidatePath("/", "layout");
-  revalidatePath("/applications");
-  revalidatePath("/kanban");
+  revalidatePath("/opportunities");
   return application;
 }
 
@@ -379,48 +374,62 @@ export async function recalculateJobMatch(applicationId: string) {
   });
 
   revalidatePath("/", "layout");
-  revalidatePath(`/applications/${applicationId}`);
-  revalidatePath("/applications");
+  revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath("/opportunities");
   return { match, eligibility };
 }
 
-export async function generateCoverLetterDraft(applicationId: string) {
-  const application = await prisma.application.findUniqueOrThrow({
-    where: { id: applicationId },
-    include: { company: true, jobAnalysis: true },
+/**
+ * "Analyze again" (AI Actions): re-fetches the original posting (or reuses
+ * the previously extracted text if there's no URL or the page can no longer
+ * be fetched) and fully re-runs extraction + match + eligibility, updating
+ * the existing JobAnalysis in place. Unlike recalculateJobMatch (score-only,
+ * cheap), this re-does the extraction itself — useful when a listing has
+ * been edited since it was first imported.
+ */
+export async function reanalyzeOpportunity(applicationId: string) {
+  const existing = await prisma.jobAnalysis.findUniqueOrThrow({ where: { applicationId } });
+
+  let extracted: ExtractedJobData;
+  const html = existing.sourceUrl ? await fetchHtml(existing.sourceUrl) : null;
+  if (html && html.trim().length >= 200) {
+    extracted = extractJobPostingFromHtml(html);
+  } else {
+    extracted = extractJobPostingFromText(existing.rawExtractedText ?? "");
+  }
+
+  if (await isAiConfigured()) {
+    const ai = await extractJobPostingWithAI(extracted.rawText);
+    if (ai) extracted = mergeAiIntoBaseline(extracted, ai);
+  }
+
+  const { match, eligibility } = await runMatchAndEligibility(extracted);
+
+  await prisma.jobAnalysis.update({
+    where: { applicationId },
+    data: {
+      extractionMethod: extracted.extractionMethod,
+      rawExtractedText: extracted.rawText.slice(0, 8000),
+      responsibilities: extracted.responsibilities,
+      qualifications: extracted.qualifications,
+      requiredSkills: JSON.stringify(extracted.requiredSkills),
+      requiredLanguages: JSON.stringify(extracted.requiredLanguages),
+      requiredEducationLevel: extracted.requiredEducationLevel,
+      requiredExperienceYears: extracted.requiredExperienceYears,
+      contractType: extracted.contractType,
+      matchScore: match.total,
+      matchBreakdown: JSON.stringify(match.factors),
+      strengths: JSON.stringify(match.strengths),
+      watchouts: JSON.stringify(match.watchouts),
+      missingSkills: JSON.stringify(match.missingSkills),
+      recommendation: match.recommendation,
+      eligibilityStatus: eligibility.status,
+      eligibilityNotes: JSON.stringify(eligibility.notes),
+      analyzedAt: new Date(),
+    },
   });
-  const profile = await getProfile();
 
-  const matchedSkills = application.jobAnalysis
-    ? profile.skills.filter((s) =>
-        (JSON.parse(application.jobAnalysis!.requiredSkills ?? "[]") as string[]).some(
-          (r) => r.toLowerCase() === s.toLowerCase(),
-        ),
-      )
-    : [];
-
-  const draft = await generateCoverLetterDraftWithAI({
-    companyName: application.company.name,
-    title: application.title,
-    matchedSkills,
-    responsibilities: application.jobAnalysis?.responsibilities ?? null,
-    profileSummary: `${profile.educationLevel ?? "formation non renseignée"}${profile.fieldOfStudy ? ` en ${profile.fieldOfStudy}` : ""}, ${profile.yearsOfExperience} an(s) d'expérience, compétences : ${profile.skills.join(", ") || "non renseignées"}.`,
-  });
-
-  if (draft) return { source: "ai" as const, content: draft };
-
-  // Deterministic template fallback when AI isn't configured/available.
-  const template = `Madame, Monsieur,
-
-Je me permets de vous adresser ma candidature pour le poste de ${application.title} au sein de ${application.company.name}.
-
-${matchedSkills.length > 0 ? `Mon profil correspond particulièrement bien à cette offre, notamment grâce à mes compétences en ${matchedSkills.join(", ")}. ` : ""}${profile.fieldOfStudy ? `Ma formation en ${profile.fieldOfStudy} ` : "Ma formation "}m'a permis de développer les compétences nécessaires pour réussir dans ce rôle.
-
-[Ajoutez ici 1-2 exemples concrets de votre expérience en lien avec le poste.]
-
-Je serais ravi(e) d'échanger avec vous pour vous présenter plus en détail ma motivation.
-
-Cordialement,`;
-
-  return { source: "template" as const, content: template };
+  revalidatePath("/", "layout");
+  revalidatePath(`/opportunities/${applicationId}`);
+  return { match, eligibility };
 }

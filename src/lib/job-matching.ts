@@ -10,7 +10,22 @@
 
 import { EDUCATION_LEVELS, LANGUAGE_LEVELS, matchLabel } from "@/lib/constants";
 import { clamp } from "@/lib/utils";
-import type { ScoreFactor, ScoreResult } from "@/lib/scoring";
+
+export type ScoreFactor = {
+  key: string;
+  label: string;
+  /** Raw factor value, already normalized to 0-100. */
+  value: number;
+  /** Weight applied to this factor (not necessarily summing to 100 across factors). */
+  weight: number;
+  /** weight * value / 100 — this factor's actual contribution to the total. */
+  contribution: number;
+};
+
+export type ScoreResult = {
+  total: number; // 0-100
+  factors: ScoreFactor[];
+};
 
 export type ProfileLanguage = { language: string; level: string };
 

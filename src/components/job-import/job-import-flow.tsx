@@ -11,7 +11,6 @@ import { FormField, FormSection } from "@/components/forms/form-field";
 import { MatchScoreCard } from "@/components/job-import/match-score-card";
 import { EXTRACTION_METHODS, labelFor } from "@/lib/constants";
 import type { JobImportFlow } from "@/components/job-import/use-job-import-flow";
-import type { ReferenceData } from "@/lib/data/reference";
 
 export function JobImportEntryStep({ flow }: { flow: JobImportFlow }) {
   return (
@@ -74,7 +73,7 @@ export function JobImportPasteFallbackStep({ flow }: { flow: JobImportFlow }) {
   );
 }
 
-export function JobImportReviewStep({ flow, reference }: { flow: JobImportFlow; reference: ReferenceData }) {
+export function JobImportReviewStep({ flow }: { flow: JobImportFlow }) {
   const { payload, fields } = flow;
   if (!payload || !fields) return null;
 
@@ -94,42 +93,16 @@ export function JobImportReviewStep({ flow, reference }: { flow: JobImportFlow; 
           <FormField label="Source">
             <Input placeholder="LinkedIn, site entreprise..." value={flow.source} onChange={(e) => flow.setSource(e.target.value)} />
           </FormField>
-          <FormField label="CV utilisé">
-            <Select value={flow.cvDocumentId} onValueChange={flow.setCvDocumentId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Non renseigné" />
-              </SelectTrigger>
-              <SelectContent>
-                {reference.documents
-                  .filter((d) => d.category === "CV")
-                  .map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name} {d.version && `(${d.version})`}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-          <FormField label="Lettre de motivation utilisée">
-            <Select value={flow.coverLetterDocumentId} onValueChange={flow.setCoverLetterDocumentId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Non renseigné" />
-              </SelectTrigger>
-              <SelectContent>
-                {reference.documents
-                  .filter((d) => d.category === "COVER_LETTER")
-                  .map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name} {d.version && `(${d.version})`}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </FormField>
           <FormField label="Prochaine action" className="sm:col-span-2">
             <Input placeholder="Relancer dans 2 semaines..." value={flow.nextAction} onChange={(e) => flow.setNextAction(e.target.value)} />
           </FormField>
+          <FormField label="Note" className="sm:col-span-2">
+            <Textarea rows={2} placeholder="Optionnel" value={flow.applicationNote} onChange={(e) => flow.setApplicationNote(e.target.value)} />
+          </FormField>
         </FormSection>
+        <p className="text-xs text-subtle-foreground">
+          Le CV et la lettre de motivation utilisés se gèrent depuis ton profil et la fiche de l&apos;offre.
+        </p>
         <div className="flex justify-end border-t border-border pt-4">
           <Button onClick={() => flow.save("ALREADY_APPLIED")} disabled={flow.pending}>
             <Send /> Enregistrer comme envoyée
@@ -146,7 +119,7 @@ export function JobImportReviewStep({ flow, reference }: { flow: JobImportFlow; 
           <p className="text-sm text-foreground">Cette opportunité semble déjà exister : {payload.duplicate.companyName} — {payload.duplicate.title}</p>
           <div className="flex gap-2">
             <Button size="sm" variant="secondary" asChild>
-              <Link href={`/applications/${payload.duplicate.id}`}>Ouvrir l&apos;existant</Link>
+              <Link href={`/opportunities/${payload.duplicate.id}`}>Ouvrir l&apos;existant</Link>
             </Button>
             <Button size="sm" variant="outline" onClick={() => flow.setIgnoreDuplicate(true)}>
               Ajouter quand même

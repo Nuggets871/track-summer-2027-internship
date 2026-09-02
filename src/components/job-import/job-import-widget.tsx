@@ -10,7 +10,6 @@ import {
   JobImportReviewStep,
 } from "@/components/job-import/job-import-flow";
 import { useJobImportFlow } from "@/components/job-import/use-job-import-flow";
-import type { ReferenceData } from "@/lib/data/reference";
 
 const STEP_TITLES: Record<string, string> = {
   analyzing: "Analyse en cours",
@@ -20,22 +19,22 @@ const STEP_TITLES: Record<string, string> = {
 };
 
 /**
- * The "Add by link" workflow: paste a job URL, get it fetched, extracted,
- * scored against your profile, and reviewed before anything is saved.
+ * The "Add by link" workflow — the app's primary action: paste a job URL,
+ * get it fetched, extracted, scored against your profile, and reviewed
+ * before anything is saved.
  *
- * `presentation="dialog"` (Dashboard, Applications page): the input bar is
- * always visible inline; once analysis starts, the rest of the flow opens in
- * a dialog.
- * `presentation="inline"` (quick-add dialog): the whole flow renders in
- * place, since it's already inside a dialog and nesting two would be poor UX.
+ * `presentation="dialog"` (Home, Opportunities): the input bar is always
+ * visible inline; once analysis starts, the rest of the flow opens in a
+ * dialog.
+ * `presentation="inline"` (the global "+ Add" dialog): the whole flow
+ * renders in place, since it's already inside a dialog and nesting two
+ * would be poor UX.
  */
 export function JobImportWidget({
   presentation = "dialog",
-  reference,
   onDone,
 }: {
   presentation?: "dialog" | "inline";
-  reference: ReferenceData;
   onDone?: (applicationId: string) => void;
 }) {
   const flow = useJobImportFlow(onDone);
@@ -44,9 +43,7 @@ export function JobImportWidget({
     <>
       {flow.step === "analyzing" && <JobImportAnalyzingStep />}
       {flow.step === "paste_fallback" && <JobImportPasteFallbackStep flow={flow} />}
-      {(flow.step === "review" || flow.step === "already_applied") && (
-        <JobImportReviewStep flow={flow} reference={reference} />
-      )}
+      {(flow.step === "review" || flow.step === "already_applied") && <JobImportReviewStep flow={flow} />}
     </>
   );
 

@@ -55,10 +55,9 @@ export function useJobImportFlow(onDone?: (applicationId: string) => void) {
 
   // "already applied" extra fields
   const [appliedAt, setAppliedAt] = useState(new Date().toISOString().slice(0, 10));
-  const [cvDocumentId, setCvDocumentId] = useState("");
-  const [coverLetterDocumentId, setCoverLetterDocumentId] = useState("");
   const [source, setSource] = useState("");
   const [nextAction, setNextAction] = useState("");
+  const [applicationNote, setApplicationNote] = useState("");
 
   const reset = () => {
     setStep("idle");
@@ -134,10 +133,8 @@ export function useJobImportFlow(onDone?: (applicationId: string) => void) {
           durationMonths: fields.durationMonths ? Number(fields.durationMonths) : null,
           startDate: fields.startDate ? new Date(fields.startDate) : null,
           deadline: fields.deadline ? new Date(fields.deadline) : null,
-          notes: fields.notes || null,
+          notes: (action === "ALREADY_APPLIED" ? applicationNote : fields.notes) || null,
           appliedAt: action === "ALREADY_APPLIED" ? new Date(appliedAt) : null,
-          cvDocumentId: cvDocumentId || null,
-          coverLetterDocumentId: coverLetterDocumentId || null,
           nextAction: nextAction || null,
           analysis: {
             sourceUrl: url.trim() || null,
@@ -169,8 +166,7 @@ export function useJobImportFlow(onDone?: (applicationId: string) => void) {
         );
         reset();
         onDone?.(application.id);
-        if (action === "PREPARE") router.push(`/applications/${application.id}?tab=preparation`);
-        else router.push(`/applications/${application.id}`);
+        router.push(`/opportunities/${application.id}`);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Une erreur est survenue");
       }
@@ -191,14 +187,12 @@ export function useJobImportFlow(onDone?: (applicationId: string) => void) {
     setIgnoreDuplicate,
     appliedAt,
     setAppliedAt,
-    cvDocumentId,
-    setCvDocumentId,
-    coverLetterDocumentId,
-    setCoverLetterDocumentId,
     source,
     setSource,
     nextAction,
     setNextAction,
+    applicationNote,
+    setApplicationNote,
     submitUrl,
     submitPastedText,
     save,

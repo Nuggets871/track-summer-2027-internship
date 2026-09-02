@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { colorFor, labelFor, matchLabel, ELIGIBILITY_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import type { ScoreFactor } from "@/lib/scoring";
+import type { ScoreFactor } from "@/lib/job-matching";
 
 export type MatchScoreCardData = {
   total: number;
