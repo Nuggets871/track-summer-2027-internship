@@ -1,0 +1,49 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: track-internship
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: file:/app/data/track-internship.db
+      NODE_ENV: production
+    volumes:
+      - track-internship-data:/app/data
+      - track-internship-uploads:/app/uploads
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.http.services.track-internship.loadbalancer.server.port=3000"
+
+      - "traefik.http.routers.track-internship.rule=Host(`track-internship.christopher-bondier.com`)"
+      - "traefik.http.routers.track-internship.entrypoints=websecure"
+      - "traefik.http.routers.track-internship.tls=true"
+      - "traefik.http.routers.track-internship.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.track-internship.middlewares=track-internship-auth,track-internship-security"
+
+      - "traefik.http.middlewares.track-internship-auth.basicauth.users=${BASIC_AUTH_USERS}"
+      - "traefik.http.middlewares.track-internship-auth.basicauth.realm=Internship Tracker"
+      - "traefik.http.middlewares.track-internship-auth.basicauth.removeheader=true"
+
+      - "traefik.http.middlewares.track-internship-security.headers.stsseconds=31536000"
+      - "traefik.http.middlewares.track-internship-security.headers.stsincludesubdomains=true"
+      - "traefik.http.middlewares.track-internship-security.headers.contenttypenosniff=true"
+      - "traefik.http.middlewares.track-internship-security.headers.framedeny=true"
+      - "traefik.http.middlewares.track-internship-security.headers.referrerpolicy=no-referrer"
+
+      - "traefik.http.routers.track-internship-http.rule=Host(`track-internship.christopher-bondier.com`)"
+      - "traefik.http.routers.track-internship-http.entrypoints=web"
+      - "traefik.http.routers.track-internship-http.middlewares=track-internship-https"
+      - "traefik.http.middlewares.track-internship-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.track-internship-https.redirectscheme.permanent=true"
+
+networks:
+  web:
+    external: true
+
+volumes:
+  track-internship-data:
+  track-internship-uploads:

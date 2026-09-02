@@ -52,3 +52,6 @@ next-env.d.ts
 
 # editor
 .idea
+
+# deployment state (written by deploy.sh on the VPS)
+/.deployed-revision

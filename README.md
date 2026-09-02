@@ -431,6 +431,30 @@ suivi :
 - Les fichiers uploadés (CV compris) vivent dans `/uploads` : pensez à les
   inclure dans vos propres sauvegardes de fichiers si vous changez de machine.
 
+## Déploiement Docker
+
+Le projet inclut un `Dockerfile`, un `docker-compose.yml` prévu pour le réseau
+Traefik externe `web`, et un script `deploy.sh`. En production, la base SQLite
+et les documents uploadés sont conservés dans des volumes Docker nommés.
+
+Avant le premier lancement, créez un fichier `.env` sur le serveur avec une
+entrée Basic Auth générée par `htpasswd` (ne commitez jamais ce fichier) :
+
+```bash
+htpasswd -nbB christopher 'un-mot-de-passe-fort'
+```
+
+Copiez la ligne produite dans `.env` sous la forme
+`BASIC_AUTH_USERS='christopher:$2y$...'`, puis lancez :
+
+```bash
+FORCE_DEPLOY=1 ./deploy.sh
+```
+
+Le conteneur exécute automatiquement `prisma migrate deploy` avant de démarrer
+Next.js. Le service n'ouvre aucun port hôte : toutes les requêtes passent par
+Traefik, qui applique HTTPS et l'authentification à l'ensemble du sous-domaine.
+
 ## Tests
 
 ```bash
