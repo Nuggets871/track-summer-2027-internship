@@ -21,16 +21,6 @@ const settingsSchema = z.object({
   staleOpportunityDays: z.coerce.number().int().min(1).optional(),
   deadlineWarningDays: z.coerce.number().int().min(0).optional(),
   contactSilenceDays: z.coerce.number().int().min(1).optional(),
-  priorityWeights: z
-    .object({
-      interest: z.number(),
-      deadlineProximity: z.number(),
-      fit: z.number(),
-      probability: z.number(),
-      relationship: z.number(),
-      staleness: z.number(),
-    })
-    .optional(),
   matchWeights: z
     .object({
       skills: z.number(),
@@ -48,7 +38,7 @@ export async function updateSettings(raw: z.infer<typeof settingsSchema>) {
   await getOrCreateSettingsRow();
   const data = settingsSchema.parse(raw);
 
-  const { preferredCountries, preferredSectors, preferredCurrencies, sourceOptions, priorityWeights, matchWeights, ...rest } = data;
+  const { preferredCountries, preferredSectors, preferredCurrencies, sourceOptions, matchWeights, ...rest } = data;
 
   await prisma.setting.update({
     where: { id: "singleton" },
@@ -58,7 +48,6 @@ export async function updateSettings(raw: z.infer<typeof settingsSchema>) {
       ...(preferredSectors ? { preferredSectors: JSON.stringify(preferredSectors) } : {}),
       ...(preferredCurrencies ? { preferredCurrencies: JSON.stringify(preferredCurrencies) } : {}),
       ...(sourceOptions ? { sourceOptions: JSON.stringify(sourceOptions) } : {}),
-      ...(priorityWeights ? { priorityWeights: JSON.stringify(priorityWeights) } : {}),
       ...(matchWeights ? { matchWeights: JSON.stringify(matchWeights) } : {}),
     },
   });

@@ -1,13 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { safeJsonParse } from "@/lib/utils";
-import {
-  DEFAULT_CURRENCIES,
-  DEFAULT_MATCH_WEIGHTS,
-  DEFAULT_PRIORITY_WEIGHTS,
-  DEFAULT_SOURCES,
-  type PriorityLevel,
-} from "@/lib/constants";
-import type { PriorityWeights } from "@/lib/scoring";
+import { DEFAULT_CURRENCIES, DEFAULT_MATCH_WEIGHTS, DEFAULT_SOURCES, type PriorityLevel } from "@/lib/constants";
 import type { MatchWeights } from "@/lib/job-matching";
 
 export type AppSettings = {
@@ -25,7 +18,6 @@ export type AppSettings = {
   staleOpportunityDays: number;
   deadlineWarningDays: number;
   contactSilenceDays: number;
-  priorityWeights: PriorityWeights;
   matchWeights: MatchWeights;
   hasSeenDemoNotice: boolean;
 };
@@ -40,7 +32,6 @@ export async function getOrCreateSettingsRow() {
       preferredCurrencies: JSON.stringify(DEFAULT_CURRENCIES),
       preferredCountries: JSON.stringify([]),
       preferredSectors: JSON.stringify([]),
-      priorityWeights: JSON.stringify(DEFAULT_PRIORITY_WEIGHTS),
       matchWeights: JSON.stringify(DEFAULT_MATCH_WEIGHTS),
     },
   });
@@ -63,7 +54,6 @@ export async function getSettings(): Promise<AppSettings> {
     staleOpportunityDays: row.staleOpportunityDays,
     deadlineWarningDays: row.deadlineWarningDays,
     contactSilenceDays: row.contactSilenceDays,
-    priorityWeights: safeJsonParse(row.priorityWeights, DEFAULT_PRIORITY_WEIGHTS),
     matchWeights: safeJsonParse(row.matchWeights, DEFAULT_MATCH_WEIGHTS),
     hasSeenDemoNotice: row.hasSeenDemoNotice,
   };
