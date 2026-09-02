@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import Papa from "papaparse";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_PIPELINE_STAGES } from "@/lib/constants";
+import { DEFAULT_PIPELINE_STAGES, LEGACY_STAGE_KEY_MAP } from "@/lib/constants";
 
 const EXPORTABLE_MODELS = [
   "country",
@@ -113,10 +113,52 @@ export async function clearDemoData() {
 }
 
 export async function ensureDefaultPipelineStages() {
-  const count = await prisma.pipelineStage.count({ where: { kind: "APPLICATION" } });
-  if (count > 0) return;
-  await prisma.pipelineStage.createMany({
-    data: DEFAULT_PIPELINE_STAGES.map((s) => ({ ...s, isSystem: true, kind: "APPLICATION" })),
+  const existing = await prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" } });
+
+  if (existing.length === 0) {
+    await prisma.pipelineStage.createMany({
+      data: DEFAULT_PIPELINE_STAGES.map((s) => ({ ...s, isSystem: true, kind: "APPLICATION" })),
+    });
+    return;
+  }
+
+  // Create any of the 7 current stages that are missing (fresh installs
+  // always have all of them; this only matters for databases upgraded from
+  // an earlier version of the app).
+  const existingKeys = new Set(existing.map((s) => s.key));
+  const missing = DEFAULT_PIPELINE_STAGES.filter((s) => !existingKeys.has(s.key));
+  if (missing.length > 0) {
+    await prisma.pipelineStage.createMany({ data: missing.map((s) => ({ ...s, isSystem: true, kind: "APPLICATION" })) });
+  }
+
+  await migrateLegacyPipelineStages();
+}
+
+/**
+ * One-time, idempotent upgrade path for local databases created by an
+ * earlier version of the app (15 statuses instead of 7): every application
+ * on a legacy status is repointed to its consolidated replacement (see
+ * LEGACY_STAGE_KEY_MAP), then the now-unused legacy stage is removed.
+ * No application is ever deleted — only its statusId changes.
+ */
+export async function migrateLegacyPipelineStages() {
+  const legacyKeys = Object.keys(LEGACY_STAGE_KEY_MAP);
+  const legacyStages = await prisma.pipelineStage.findMany({
+    where: { kind: "APPLICATION", key: { in: legacyKeys } },
+  });
+  if (legacyStages.length === 0) return;
+
+  const currentStages = await prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" } });
+  const byKey = new Map(currentStages.map((s) => [s.key, s]));
+
+  await prisma.$transaction(async (tx) => {
+    for (const legacy of legacyStages) {
+      const newKey = LEGACY_STAGE_KEY_MAP[legacy.key];
+      const target = byKey.get(newKey);
+      if (!target) continue; // shouldn't happen — the 7 defaults are ensured above
+      await tx.application.updateMany({ where: { statusId: legacy.id }, data: { statusId: target.id } });
+      await tx.pipelineStage.delete({ where: { id: legacy.id } });
+    }
   });
 }
 
@@ -167,7 +209,7 @@ export async function exportApplicationsCsv() {
 
 export async function importApplicationsCsv(rows: Record<string, string>[]) {
   const stages = await prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" } });
-  const defaultStage = stages.find((s) => s.key === "TO_EXPLORE") ?? stages[0];
+  const defaultStage = stages.find((s) => s.key === "SAVED") ?? stages[0];
   let imported = 0;
 
   for (const row of rows) {
@@ -210,6 +252,6 @@ export async function importApplicationsCsv(rows: Record<string, string>[]) {
   }
 
   revalidatePath("/", "layout");
-  revalidatePath("/applications");
+  revalidatePath("/opportunities");
   return imported;
 }

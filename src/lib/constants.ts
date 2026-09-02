@@ -3,48 +3,46 @@
 // statuses, so these are plain string unions validated with zod at the
 // boundaries (server actions) instead of DB-level enums.
 
+// Deliberately just 7 statuses — the whole workflow must be understandable
+// at a glance. Prefer expressing extra nuance via nextAction/deadline
+// rather than adding more statuses.
 export const DEFAULT_PIPELINE_STAGES = [
-  { key: "TO_EXPLORE", label: "À explorer", color: "#94a3b8", order: 0 },
-  { key: "TO_CONTACT", label: "À contacter", color: "#a78bfa", order: 1 },
-  { key: "TO_PREPARE", label: "À préparer", color: "#818cf8", order: 2 },
-  { key: "READY", label: "Candidature prête", color: "#60a5fa", order: 3 },
-  { key: "SENT", label: "Candidature envoyée", color: "#38bdf8", order: 4 },
-  { key: "FOLLOW_UP", label: "Relance à faire", color: "#fb923c", order: 5 },
-  { key: "RESPONSE_RECEIVED", label: "Réponse reçue", color: "#facc15", order: 6 },
-  { key: "ASSESSMENT", label: "Test / assessment", color: "#fbbf24", order: 7 },
-  { key: "INTERVIEW_HR", label: "Entretien RH", color: "#4ade80", order: 8 },
-  { key: "INTERVIEW_MANAGER", label: "Entretien manager", color: "#34d399", order: 9 },
-  { key: "INTERVIEW_FINAL", label: "Entretien final", color: "#2dd4bf", order: 10 },
-  { key: "OFFER", label: "Offer", color: "#22c55e", order: 11 },
-  { key: "REJECTED", label: "Refus", color: "#f87171", order: 12 },
-  { key: "GHOSTED", label: "Ghosted", color: "#71717a", order: 13 },
-  { key: "ABANDONED", label: "Abandonné", color: "#57534e", order: 14 },
+  { key: "SAVED", label: "Sauvegardée", color: "#94a3b8", order: 0 },
+  { key: "PREPARING", label: "En préparation", color: "#818cf8", order: 1 },
+  { key: "APPLIED", label: "Envoyée", color: "#38bdf8", order: 2 },
+  { key: "INTERVIEW", label: "Entretien", color: "#4ade80", order: 3 },
+  { key: "OFFER", label: "Offre", color: "#22c55e", order: 4 },
+  { key: "REJECTED", label: "Refusée", color: "#f87171", order: 5 },
+  { key: "ARCHIVED", label: "Archivée", color: "#71717a", order: 6 },
 ] as const;
 
+// Maps every status key from the previous (15-status) product generation to
+// the new consolidated one — used by ensureDefaultPipelineStages() to
+// upgrade an existing local database in place, without ever losing an
+// application (see src/lib/actions/backup.ts migrateLegacyPipelineStages).
+export const LEGACY_STAGE_KEY_MAP: Record<string, string> = {
+  TO_EXPLORE: "SAVED",
+  TO_CONTACT: "SAVED",
+  TO_PREPARE: "PREPARING",
+  READY: "PREPARING",
+  SENT: "APPLIED",
+  FOLLOW_UP: "APPLIED",
+  RESPONSE_RECEIVED: "APPLIED",
+  ASSESSMENT: "INTERVIEW",
+  INTERVIEW_HR: "INTERVIEW",
+  INTERVIEW_MANAGER: "INTERVIEW",
+  INTERVIEW_FINAL: "INTERVIEW",
+  GHOSTED: "ARCHIVED",
+  ABANDONED: "ARCHIVED",
+  // OFFER and REJECTED already match the new key names 1:1.
+};
+
 // Stages considered "active pipeline" (not terminal) — used for stats.
-export const TERMINAL_STAGE_KEYS = ["OFFER", "REJECTED", "GHOSTED", "ABANDONED"];
+export const TERMINAL_STAGE_KEYS = ["OFFER", "REJECTED", "ARCHIVED"];
 export const POSITIVE_TERMINAL_STAGE_KEYS = ["OFFER"];
-export const INTERVIEW_STAGE_KEYS = [
-  "ASSESSMENT",
-  "INTERVIEW_HR",
-  "INTERVIEW_MANAGER",
-  "INTERVIEW_FINAL",
-];
-export const SENT_OR_LATER_STAGE_KEYS = [
-  "SENT",
-  "FOLLOW_UP",
-  "RESPONSE_RECEIVED",
-  ...INTERVIEW_STAGE_KEYS,
-  "OFFER",
-  "REJECTED",
-  "GHOSTED",
-];
-export const RESPONSE_STAGE_KEYS = [
-  "RESPONSE_RECEIVED",
-  ...INTERVIEW_STAGE_KEYS,
-  "OFFER",
-  "REJECTED",
-];
+export const INTERVIEW_STAGE_KEYS = ["INTERVIEW"];
+export const SENT_OR_LATER_STAGE_KEYS = ["APPLIED", "INTERVIEW", "OFFER", "REJECTED"];
+export const RESPONSE_STAGE_KEYS = ["INTERVIEW", "OFFER", "REJECTED"];
 
 export const PRIORITY_LEVELS = [
   { value: "LOW", label: "Basse", color: "#94a3b8" },
@@ -219,15 +217,6 @@ export const COMPANY_TYPES = [
   "Agence",
   "Autre",
 ];
-
-export const DEFAULT_PRIORITY_WEIGHTS = {
-  interest: 25,
-  deadlineProximity: 20,
-  fit: 20,
-  probability: 15,
-  relationship: 10,
-  staleness: -10,
-};
 
 export function labelFor<T extends { value: string; label: string }>(
   options: readonly T[],

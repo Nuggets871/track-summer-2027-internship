@@ -164,8 +164,9 @@ model Application {
   followUpCount     Int       @default(0)
   lastInteractionAt DateTime?
 
-  notes  String?
-  isDemo Boolean @default(false)
+  notes              String?
+  interviewPrepNotes String? // AI-generated "Prepare interview" output, rattaché directement à l'opportunité
+  isDemo             Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -346,6 +347,8 @@ model CoverLetter {
   status               String      @default("DRAFT") // DRAFT | TO_REVIEW | READY | SENT
   version              String      @default("v1")
   content              String?
+  tone                 String? // PROFESSIONAL | NATURAL | CONCISE | PERSONALIZED
+  language             String? // FR | EN
   personalizedElements String?
   documentId           String?
   notes                String?
@@ -561,7 +564,15 @@ model Setting {
   priorityWeights      String? // JSON: { interest, deadlineProximity, fit, probability, relationship, staleness }
   matchWeights         String? // JSON: { skills, experience, education, languages, location, preferences } — job-match dimension weights
   hasSeenDemoNotice    Boolean   @default(false)
-  updatedAt            DateTime  @updatedAt
+
+  // AI provider config — the key lives in this local database (never in
+  // source code, never logged), so the app never requires an env var edit.
+  // A provider abstraction (src/lib/ai) reads this first and falls back to
+  // DEEPSEEK_API_KEY in .env for compatibility.
+  aiProvider     String  @default("deepseek")
+  deepseekApiKey String?
+
+  updatedAt DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------------------
@@ -569,16 +580,39 @@ model Setting {
 // ---------------------------------------------------------------------------
 
 model Profile {
-  id                String   @id @default("singleton")
+  id String @id @default("singleton")
+
+  // Personal
+  firstName String?
+  lastName  String?
+  email     String?
+  phone     String?
+
+  // Education
   educationLevel    String? // e.g. Licence, Bachelor, Master, MBA, PhD
   fieldOfStudy      String?
   graduationYear    Int?
-  yearsOfExperience Int      @default(0)
-  skills            String? // JSON array of strings
-  languages         String? // JSON array of { language, level }
+  yearsOfExperience Int     @default(0)
+
+  // Experience — JSON array of { title, company, startDate, endDate, description }
+  experiences String?
+
+  // Skills & languages
+  skills    String? // JSON array of strings
+  languages String? // JSON array of { language, level }
+
+  // Preferences / logistics
   workAuthorization String? // free-text personal note — NOT legal advice
   availabilityNote  String?
-  updatedAt         DateTime @updatedAt
+
+  // CV — the source of truth the AI is grounded on. cvRawText is the
+  // extracted plain text (kept even if the Document is later deleted), so
+  // "Improve my CV" / cover letters / the assistant always have it at hand.
+  cvDocumentId String?
+  cvRawText    String?
+  cvParsedAt   DateTime?
+
+  updatedAt DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------------------
