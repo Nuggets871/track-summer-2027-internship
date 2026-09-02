@@ -17,6 +17,7 @@ de fonctionnalités, mais faites pour être utilisées tous les jours.
 ## Sommaire
 
 - [Fonctionnalités](#fonctionnalités)
+- [Sources de données (Discover)](#sources-de-données-discover)
 - [Stack technique](#stack-technique)
 - [Installation](#installation)
 - [Lancement](#lancement)
@@ -63,6 +64,30 @@ sauvegarde. Le score reste associé à l'analyse et à la version du profil
 utilisée : si le profil change ensuite, une bannière **"Ton profil a changé
 depuis cette analyse"** apparaît sur la fiche, avec un bouton **Recalculer le
 match** — jamais de recalcul automatique en masse.
+
+### 🔭 Discover
+Une vraie centralisation d'offres — pas une simulation. Discover agrège des
+offres depuis des **sources réelles et vérifiées** (voir
+[Sources de données](#sources-de-données-discover) plus bas), les normalise,
+détecte les doublons entre sources, et calcule le même Match Score
+déterministe que le reste de l'app pour chacune.
+
+- **Recherche plein texte** (mots-clés multiples, ex. *"finance london
+  summer"*) sur titre/entreprise/description/compétences/secteur/ville/pays,
+  via un index SQLite FTS5 réel — rapide même à plusieurs milliers d'offres.
+- **Filtres** : pays, ville, secteur, remote/hybride/sur site, source, visa/
+  sponsorship, plus des filtres rapides (*Match > 80 %*, *Posted this week*,
+  *Visa friendly*, *Remote*, *Saved*).
+- **Tri** : meilleur match (par défaut), plus récentes, deadline, salaire,
+  entreprise.
+- **Recherches sauvegardées** et **watchlist** (mot-clé/pays/ville/secteur à
+  suivre, marqué "nouveau" après une synchronisation).
+- **Recherche en langage naturel** (optionnelle, IA) : décris ce que tu
+  cherches en une phrase, l'IA la traduit en filtres structurés — elle ne
+  fait jamais que réorganiser tes propres mots, jamais inventer une offre.
+- **Sauvegarde en un clic** vers Opportunities, sans ressaisie et sans
+  doublon (une offre déjà suivie, retrouvée à nouveau plus tard sur une autre
+  source, se relie à la même candidature).
 
 ### 🏠 Accueil
 Une seule action évidente (coller un lien), tes meilleurs matches, tes
@@ -111,6 +136,8 @@ ouverture.
 
 ### ⚙️ Paramètres
 - **Général** — identité, période de recherche, pays/secteurs/devises suivis ;
+- **Sources** — ajouter/activer-désactiver/supprimer une source Discover,
+  synchroniser (une par une ou toutes), importer une liste CSV/JSON ;
 - **IA** — clé API DeepSeek (enregistrer / tester la connexion / afficher-
   masquer / supprimer), stockée dans la base de données locale, jamais dans
   le code ni journalisée, avec repli automatique sur la variable d'environnement
@@ -128,6 +155,42 @@ ouverture.
   volée, jamais stockées.
 - **Dark mode / Light mode**, sidebar repliable.
 
+## Sources de données (Discover)
+
+Chaque source est réelle, vérifiée à l'ajout (un `healthCheck()` doit réussir
+avant qu'elle soit enregistrée), et le code ne prétend jamais qu'une source
+fonctionne quand elle est en panne — une source en erreur est marquée comme
+telle sur sa propre ligne, sans jamais faire échouer les autres.
+
+| Source | Ce que c'est réellement | Limite honnête |
+|---|---|---|
+| **Greenhouse** | L'API publique (sans clé) du job board d'**une** entreprise — [developers.greenhouse.io](https://developers.greenhouse.io/job-board.html) | Une entreprise à la fois : Greenhouse n'expose aucune recherche globale multi-entreprises |
+| **Lever** | L'API publique (sans clé) des offres d'**une** entreprise — [github.com/lever/postings-api](https://github.com/lever/postings-api) | Même limite : une entreprise à la fois |
+| **Flux RSS** | Un vrai flux RSS/Atom (page carrières, job board) que tu renseignes | Fonctionne seulement si l'entreprise/le site publie effectivement un flux |
+| **Endpoint JSON** | Une URL que tu contrôles, retournant un tableau JSON d'offres | Aucune convention de champs imposée au-delà d'un mapping tolérant (title/company/location/url/description) |
+| **CSV (URL)** | Un CSV hébergé (ex. Google Sheet publié en CSV), re-téléchargé à chaque sync | Idem, mapping de colonnes tolérant mais pas magique |
+| **Import manuel** | Un CSV ou JSON collé/uploadé une fois | Pas de re-synchronisation automatique — c'est un import, pas une source live |
+
+**Ce qui n'est délibérément pas construit** : un scraper générique de pages
+carrières, ou un connecteur LinkedIn/Indeed — ces plateformes n'offrent pas
+d'API publique légitime pour ça, et prétendre le contraire serait fabriquer
+un faux moteur de recherche. Ajouter un jour un vrai partenaire/agrégateur ou
+un scraping ciblé et légal reste possible sans rien réécrire ailleurs : il
+suffit d'implémenter l'interface `JobSourceProvider`
+(`src/lib/discover/types.ts` — `searchJobs()` / `healthCheck()`) et
+d'enregistrer le nouveau type dans `src/lib/discover/providers/registry.ts`.
+
+Chaque offre ingérée passe par le même pipeline, quelle que soit sa source :
+normalisation (`src/lib/discover/normalize.ts`, qui réutilise les heuristiques
+d'extraction déjà éprouvées par le workflow "coller un lien"), classification
+stage/non-stage par mots-clés à limites de mot réelles (pas de faux positifs
+du style "intern**al**" ou "back**stage**" — voir `classify.ts`),
+déduplication inter-sources par URL canonique et par (entreprise + intitulé +
+localisation) (`dedup.ts`), puis pré-scoring local déterministe
+(`scoring.ts`, qui appelle directement `computeJobMatch`/`computeEligibility`
+— jamais l'IA) avant indexation dans le moteur de recherche plein texte
+(`search-index.ts`).
+
 ## Stack technique
 
 | Domaine | Choix | Pourquoi |
@@ -139,8 +202,10 @@ ouverture.
 | Formulaires | **zod** | Validation partagée client/serveur |
 | État global léger | **zustand** | Sidebar, command palette, dialogue d'ajout — pas de Redux nécessaire |
 | Icônes | **lucide-react** | Cohérent avec l'esthétique Linear/Attio/Raycast |
-| CSV | **papaparse** | Import/export robuste |
+| CSV | **papaparse** | Import/export robuste, réutilisé pour les sources/imports Discover |
 | Extraction de CV | **pdf-parse**, **mammoth** | Texte brut à partir d'un PDF ou d'un DOCX |
+| Flux RSS | **rss-parser** | Parsing RSS/Atom réel pour les sources Discover de type flux |
+| Recherche plein texte | **SQLite FTS5** (via requêtes brutes Prisma) | Index réel, natif, pas de service de recherche externe à faire tourner |
 | Tests | **vitest** | Rapide, ESM natif, bonne intégration TypeScript |
 | IA (optionnelle) | **DeepSeek** (API compatible OpenAI), derrière une interface `AiProvider` | Extraction avancée, lettres de motivation, analyse de CV, assistant — jamais requise, l'app reste 100 % fonctionnelle sans clé |
 
@@ -257,27 +322,39 @@ prisma/
 src/
   app/                   # Pages (App Router)
     page.tsx               # Accueil
+    discover/               # Recherche/filtres/tri sur les offres agrégées
     opportunities/          # Liste + fiche détail
     profile/                # Profil candidat + import CV
     assistant/              # Chat IA
-    settings/               # Général / IA / Matching / Apparence / Données
+    settings/               # Général / Sources / IA / Matching / Apparence / Données
     api/documents/[id]/     # Téléchargement des fichiers uploadés (CV inclus)
   components/
     ui/                  # Primitives de design system (bouton, dialog...)
     layout/              # Sidebar, topbar, command palette, quick-add
     job-import/            # Workflow "coller un lien" (widget, flow, score card)
+    discover/               # Barre de recherche, filtres, carte d'offre, détail
     opportunities/          # Tableau + sections de la fiche opportunité
     profile/                # Formulaire profil, import/review de CV
     assistant/              # Interface de chat
-    settings/               # Formulaires de chaque onglet Paramètres
+    settings/               # Formulaires de chaque onglet Paramètres (dont Sources)
   lib/
     actions/              # Server Actions (une "use server" par domaine)
     data/                  # Requêtes de lecture côté serveur (Prisma)
+    discover/
+      types.ts               # Interface JobSourceProvider — chaque source l'implémente
+      providers/              # Greenhouse, Lever, RSS, JSON endpoint, CSV URL, manuel
+      normalize.ts            # Source brute -> forme persistée (réutilise job-extraction.ts)
+      classify.ts             # Stage ou non, secteur — mots-clés à limites de mot réelles
+      dedup.ts                # Déduplication inter-sources (URL canonique + entreprise/titre/lieu)
+      scoring.ts              # Pré-score local — appelle computeJobMatch, jamais l'IA
+      search-index.ts         # Index plein texte SQLite FTS5
+      sync.ts                 # Orchestrateur : fetch -> normalize -> dedup -> score -> index
+      import.ts               # Import CSV/JSON ponctuel (même pipeline que sync.ts)
     ai/
       types.ts               # Interface AiProvider — le code métier ne connaît qu'elle
       provider.ts             # Résolution du fournisseur configuré + clé
       providers/deepseek.ts   # Implémentation DeepSeek
-      prompts/                # Un module par tâche IA (extraction, lettre, CV, entretien, assistant)
+      prompts/                # Un module par tâche IA (extraction, lettre, CV, entretien, assistant, recherche Discover)
     cv-file-text.ts        # Extraction de texte PDF/DOCX/texte brut
     job-extraction.ts        # Parsing HTML/texte → données structurées (pur, testé)
     job-matching.ts           # Match Score + Eligibility (pur, testé)
@@ -320,6 +397,11 @@ La suite couvre :
 - **Match Score & Eligibility** (`tests/job-matching.test.ts`) : chaque
   dimension du score, respect des pondérations personnalisées, détection
   d'une fenêtre de date de diplôme incompatible.
+- **Discover** (`tests/discover.test.ts`) : classification stage/non-stage
+  sur des titres réels (y compris les pièges "Internal"/"International" —
+  trouvés en testant contre le vrai board Greenhouse de GitLab), détection
+  de secteur, découpage de localisation, canonicalisation d'URL pour la
+  déduplication, mapping tolérant CSV/JSON, construction des requêtes FTS5.
 - **Workflows critiques** (`tests/actions.integration.test.ts`) : mise à jour
   d'une opportunité, changement de statut, export/import JSON complet,
   export/import CSV — exécutés contre une vraie base SQLite jetable
@@ -367,6 +449,29 @@ Configurez une clé API DeepSeek dans **Paramètres > IA**, ou définissez
 `DEEPSEEK_API_KEY` dans `.env`. Sans clé, l'app reste pleinement utilisable :
 l'extraction retombe sur l'analyse heuristique, et les lettres de motivation
 sur un modèle simple à personnaliser soi-même.
+
+**Discover est vide**
+C'est normal tant qu'aucune source n'est configurée — voir
+[Sources de données](#sources-de-données-discover). Va dans **Paramètres >
+Sources > Ajouter une source**, renseigne le board token Greenhouse ou le
+company token Lever d'une entreprise qui t'intéresse (visible dans l'URL de
+sa page carrières), ou importe un CSV/JSON. Rien n'apparaît par défaut —
+l'app ne simule jamais des offres qu'elle n'a pas réellement récupérées.
+
+**"boardToken manquant" / "companyToken manquant" en ajoutant une source**
+Le token Greenhouse ou Lever d'une entreprise correspond au segment
+d'URL de sa page carrières : `job-boards.greenhouse.io/<token>` ou
+`jobs.lever.co/<token>`. Certaines entreprises n'utilisent ni Greenhouse ni
+Lever — dans ce cas, cherche plutôt un flux RSS ou un endpoint JSON, ou
+ajoute leurs offres via import manuel.
+
+**Une source Greenhouse/Lever ramène 0 offre alors que l'entreprise recrute**
+Discover ne garde que ce qui ressemble à un stage (mots-clés comme intern/
+stagiaire/co-op/apprenti/graduate program — voir `src/lib/discover/
+classify.ts`) parmi *tous* les postes listés par l'entreprise. Si elle n'a
+actuellement aucun poste correspondant à ces mots-clés ouvert, c'est un vrai
+zéro, pas un bug — beaucoup d'entreprises n'ouvrent leurs stages Été 2027 que
+plus tard dans l'année.
 
 ---
 
