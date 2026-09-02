@@ -10,6 +10,7 @@ import {
   getListingDetail,
   parseListingArrays,
   getJobSources,
+  getJobSourceEditableConfig,
   type DiscoverFilters,
   type DiscoverSort,
 } from "@/lib/data/discover";
@@ -26,4 +27,8 @@ export async function getListingDetailAction(id: string) {
 
 export async function getJobSourcesAction() {
   return getJobSources();
+}
+
+export async function getJobSourceEditableConfigAction(id: string) {
+  return getJobSourceEditableConfig(id);
 }

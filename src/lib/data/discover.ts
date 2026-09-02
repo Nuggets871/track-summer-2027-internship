@@ -218,6 +218,25 @@ export async function getJobSources(): Promise<JobSourceSafe[]> {
   return prisma.jobSource.findMany({ select: jobSourceSafeSelect, orderBy: { createdAt: "asc" } });
 }
 
+/**
+ * Config for the Edit dialog — non-secret fields (country, query, feed
+ * URL...) come through as-is so they can be prefilled; any key listed in
+ * SECRET_CONFIG_KEYS for this source's type is stripped entirely. The
+ * dialog shows those fields blank with a "leave empty to keep" hint, and
+ * updateJobSource() only overwrites what's actually resubmitted.
+ */
+export async function getJobSourceEditableConfig(id: string) {
+  const { SECRET_CONFIG_KEYS } = await import("@/lib/discover/providers/registry");
+  const source = await prisma.jobSource.findUniqueOrThrow({
+    where: { id },
+    select: { id: true, type: true, name: true, config: true },
+  });
+  const config = safeJsonParse<Record<string, unknown>>(source.config, {});
+  const secretKeys = SECRET_CONFIG_KEYS[source.type as keyof typeof SECRET_CONFIG_KEYS] ?? [];
+  for (const key of secretKeys) delete config[key];
+  return { id: source.id, type: source.type, name: source.name, config };
+}
+
 export async function getSavedSearches() {
   return prisma.savedSearch.findMany({ orderBy: { createdAt: "desc" } });
 }

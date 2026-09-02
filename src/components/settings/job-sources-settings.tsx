@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Trash2, UploadCloud, CheckCircle2, XCircle, HelpCircle, KeyRound } from "lucide-react";
+import { Plus, RefreshCw, Trash2, UploadCloud, CheckCircle2, XCircle, HelpCircle, KeyRound, Copy, Pencil } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,12 +13,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { addJobSource, toggleJobSource, deleteJobSource, syncOneSource, syncAllJobSources, importDiscoverCsv, importDiscoverJson } from "@/lib/actions/discover";
-import { getJobSourcesAction } from "@/lib/actions/discover-search";
+import {
+  addJobSource,
+  updateJobSource,
+  duplicateJobSource,
+  toggleJobSource,
+  deleteJobSource,
+  syncOneSource,
+  syncAllJobSources,
+  importDiscoverCsv,
+  importDiscoverJson,
+} from "@/lib/actions/discover";
+import { getJobSourcesAction, getJobSourceEditableConfigAction } from "@/lib/actions/discover-search";
 import { SOURCE_TYPE_LABELS, API_KEY_SOURCE_TYPES } from "@/lib/discover/providers/registry";
 import type { JobSourceSafe } from "@/lib/data/discover";
 
 type SourceType = "GREENHOUSE" | "LEVER" | "RSS" | "JSON_ENDPOINT" | "CSV_URL" | "ADZUNA" | "JSEARCH" | "REED" | "JOOBLE";
+type DialogMode = "add" | "edit" | null;
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "OK") return <Badge variant="success"><CheckCircle2 className="size-3" /> OK</Badge>;
@@ -29,7 +40,9 @@ function StatusBadge({ status }: { status: string }) {
 export function JobSourcesSettings({ sources: initialSources }: { sources: JobSourceSafe[] }) {
   const [sources, setSources] = useState(initialSources);
   const [pending, startTransition] = useTransition();
-  const [addOpen, setAddOpen] = useState(false);
+
+  const [mode, setMode] = useState<DialogMode>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [type, setType] = useState<SourceType>("GREENHOUSE");
   const [name, setName] = useState("");
   const [token, setToken] = useState("");
@@ -70,7 +83,19 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
     startTransition(() => deleteJobSource(id));
   };
 
-  const resetAddForm = () => {
+  const duplicate = (source: JobSourceSafe) => {
+    startTransition(async () => {
+      try {
+        await duplicateJobSource(source.id);
+        setSources(await getJobSourcesAction());
+        toast.success("Source dupliquée et synchronisée — modifie-la pour ajuster la recherche.");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Impossible de dupliquer cette source");
+      }
+    });
+  };
+
+  const resetForm = () => {
     setName("");
     setToken("");
     setUrl("");
@@ -81,31 +106,79 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
     setLocation("");
   };
 
-  const submitAdd = () => {
+  const closeDialog = () => {
+    setMode(null);
+    setEditingId(null);
+    resetForm();
+  };
+
+  const openAdd = () => {
+    resetForm();
+    setType("GREENHOUSE");
+    setMode("add");
+  };
+
+  const openEdit = (source: JobSourceSafe) => {
+    startTransition(async () => {
+      const cfg = await getJobSourceEditableConfigAction(source.id);
+      const c = cfg.config as Record<string, unknown>;
+      const str = (v: unknown) => (typeof v === "string" ? v : "");
+      resetForm();
+      setType(cfg.type as SourceType);
+      setName(cfg.name);
+      if (cfg.type === "GREENHOUSE") setToken(str(c.boardToken));
+      else if (cfg.type === "LEVER") setToken(str(c.companyToken));
+      else if (cfg.type === "RSS") setUrl(str(c.feedUrl));
+      else if (cfg.type === "JSON_ENDPOINT") setUrl(str(c.endpointUrl));
+      else if (cfg.type === "CSV_URL") setUrl(str(c.csvUrl));
+      else if (cfg.type === "ADZUNA") {
+        setAppId(str(c.appId));
+        setCountry(str(c.country) || "gb");
+        setQuery(str(c.what) || "internship");
+      } else if (cfg.type === "JSEARCH" || cfg.type === "REED") {
+        setQuery(str(c.query ?? c.keywords) || "internship");
+      } else if (cfg.type === "JOOBLE") {
+        setQuery(str(c.keywords) || "internship");
+        setLocation(str(c.location));
+      }
+      // Secret fields (appKey/apiKey) are never returned — left blank on
+      // purpose, submitting the form unchanged keeps the saved key.
+      setEditingId(source.id);
+      setMode("edit");
+    });
+  };
+
+  const buildConfig = (): Record<string, unknown> =>
+    type === "GREENHOUSE" ? { boardToken: token, companyLabel: name }
+    : type === "LEVER" ? { companyToken: token, companyLabel: name }
+    : type === "RSS" ? { feedUrl: url, companyLabel: name }
+    : type === "JSON_ENDPOINT" ? { endpointUrl: url }
+    : type === "CSV_URL" ? { csvUrl: url }
+    : type === "ADZUNA" ? { appId, appKey: apiKey, country, what: query }
+    : type === "JSEARCH" ? { apiKey, query }
+    : type === "REED" ? { apiKey, keywords: query }
+    : { apiKey, keywords: query, location: location || undefined }; // JOOBLE
+
+  const submit = () => {
     if (!name.trim()) {
       toast.error("Donne un nom à cette source.");
       return;
     }
-    const config: Record<string, unknown> =
-      type === "GREENHOUSE" ? { boardToken: token, companyLabel: name }
-      : type === "LEVER" ? { companyToken: token, companyLabel: name }
-      : type === "RSS" ? { feedUrl: url, companyLabel: name }
-      : type === "JSON_ENDPOINT" ? { endpointUrl: url }
-      : type === "CSV_URL" ? { csvUrl: url }
-      : type === "ADZUNA" ? { appId, appKey: apiKey, country, what: query }
-      : type === "JSEARCH" ? { apiKey, query }
-      : type === "REED" ? { apiKey, keywords: query }
-      : { apiKey, keywords: query, location: location || undefined }; // JOOBLE
+    const config = buildConfig();
 
     startTransition(async () => {
       try {
-        await addJobSource({ type, name: name.trim(), config });
+        if (mode === "edit" && editingId) {
+          await updateJobSource(editingId, { name: name.trim(), config });
+          toast.success("Source mise à jour et resynchronisée");
+        } else {
+          await addJobSource({ type, name: name.trim(), config });
+          toast.success("Source ajoutée et synchronisée");
+        }
         setSources(await getJobSourcesAction());
-        toast.success("Source ajoutée et synchronisée");
-        setAddOpen(false);
-        resetAddForm();
+        closeDialog();
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Impossible d'ajouter cette source");
+        toast.error(e instanceof Error ? e.message : "Échec de l'enregistrement de cette source");
       }
     });
   };
@@ -158,7 +231,7 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
             <Button size="sm" variant="outline" onClick={syncAll} disabled={pending || sources.length === 0}>
               <RefreshCw className="size-3.5" /> Sync all
             </Button>
-            <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Button size="sm" onClick={openAdd}>
               <Plus className="size-3.5" /> Ajouter une source
             </Button>
           </div>
@@ -184,7 +257,13 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
                     <Button size="sm" variant="outline" onClick={() => sync(s.id)} disabled={pending}>
                       <RefreshCw className="size-3.5" /> Sync now
                     </Button>
-                    <button className="text-muted-foreground hover:text-danger" onClick={() => remove(s.id)}>
+                    <button className="text-muted-foreground hover:text-foreground" title="Modifier" onClick={() => openEdit(s)} disabled={pending}>
+                      <Pencil className="size-4" />
+                    </button>
+                    <button className="text-muted-foreground hover:text-foreground" title="Dupliquer" onClick={() => duplicate(s)} disabled={pending}>
+                      <Copy className="size-4" />
+                    </button>
+                    <button className="text-muted-foreground hover:text-danger" title="Supprimer" onClick={() => remove(s.id)}>
                       <Trash2 className="size-4" />
                     </button>
                   </div>
@@ -230,38 +309,48 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
         </CardContent>
       </Card>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog open={mode !== null} onOpenChange={(open) => !open && closeDialog()}>
         <DialogContent size="md">
           <DialogHeader>
-            <DialogTitle>Ajouter une source</DialogTitle>
+            <DialogTitle>{mode === "edit" ? "Modifier la source" : "Ajouter une source"}</DialogTitle>
           </DialogHeader>
           <DialogBody className="flex flex-col gap-3 pb-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Type de source</label>
-              <Select value={type} onValueChange={(v) => setType(v as SourceType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="GREENHOUSE">Entreprise (Greenhouse)</SelectItem>
-                  <SelectItem value="LEVER">Entreprise (Lever)</SelectItem>
-                  <SelectItem value="ADZUNA">Adzuna — recherche par mots-clés (clé API)</SelectItem>
-                  <SelectItem value="JSEARCH">JSearch / RapidAPI (clé API)</SelectItem>
-                  <SelectItem value="REED">Reed.co.uk — UK (clé API)</SelectItem>
-                  <SelectItem value="JOOBLE">Jooble (clé API)</SelectItem>
-                  <SelectItem value="RSS">Flux RSS</SelectItem>
-                  <SelectItem value="JSON_ENDPOINT">Endpoint JSON</SelectItem>
-                  <SelectItem value="CSV_URL">CSV (URL)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {mode === "edit" ? (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Type de source</label>
+                <p className="rounded-md border border-border bg-surface-muted/40 px-3 py-2 text-sm text-foreground">
+                  {SOURCE_TYPE_LABELS[type]}
+                </p>
+                <p className="text-xs text-muted-foreground">Le type ne peut pas être changé — supprime la source et recrée-en une pour changer de type.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Type de source</label>
+                <Select value={type} onValueChange={(v) => setType(v as SourceType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GREENHOUSE">Entreprise (Greenhouse)</SelectItem>
+                    <SelectItem value="LEVER">Entreprise (Lever)</SelectItem>
+                    <SelectItem value="ADZUNA">Adzuna — recherche par mots-clés (clé API)</SelectItem>
+                    <SelectItem value="JSEARCH">JSearch / RapidAPI (clé API)</SelectItem>
+                    <SelectItem value="REED">Reed.co.uk — UK (clé API)</SelectItem>
+                    <SelectItem value="JOOBLE">Jooble (clé API)</SelectItem>
+                    <SelectItem value="RSS">Flux RSS</SelectItem>
+                    <SelectItem value="JSON_ENDPOINT">Endpoint JSON</SelectItem>
+                    <SelectItem value="CSV_URL">CSV (URL)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {isApiKeyType && (
               <p className="flex items-start gap-1.5 rounded-md border border-primary/30 bg-primary-soft/40 p-2.5 text-xs text-foreground">
                 <KeyRound className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                La clé reste stockée localement dans ta base de données, comme la clé DeepSeek — jamais dans le code, jamais
-                renvoyée à cette interface après l&apos;ajout. Étapes pour l&apos;obtenir : voir le README, section
-                &quot;Sources de données (Discover)&quot;.
+                {mode === "edit"
+                  ? "Le champ de clé ci-dessous est vide par sécurité (elle n'est jamais renvoyée à cette interface) — laisse-le vide pour conserver la clé déjà enregistrée, ou saisis-en une nouvelle pour la remplacer."
+                  : "La clé reste stockée localement dans ta base de données, comme la clé DeepSeek — jamais dans le code, jamais renvoyée à cette interface après l'ajout. Étapes pour l'obtenir : voir le README, section \"Sources de données (Discover)\"."}
               </p>
             )}
 
@@ -300,8 +389,8 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
                     <Input value={appId} onChange={(e) => setAppId(e.target.value)} />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">app_key</label>
-                    <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+                    <label className="text-xs font-medium text-muted-foreground">app_key {mode === "edit" && "(laisser vide pour conserver)"}</label>
+                    <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={mode === "edit" ? "••••••••" : undefined} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -320,8 +409,8 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
             {type === "JSEARCH" && (
               <>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Clé API RapidAPI</label>
-                  <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+                  <label className="text-xs font-medium text-muted-foreground">Clé API RapidAPI {mode === "edit" && "(laisser vide pour conserver)"}</label>
+                  <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={mode === "edit" ? "••••••••" : undefined} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Recherche</label>
@@ -333,8 +422,8 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
             {type === "REED" && (
               <>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Clé API Reed</label>
-                  <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+                  <label className="text-xs font-medium text-muted-foreground">Clé API Reed {mode === "edit" && "(laisser vide pour conserver)"}</label>
+                  <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={mode === "edit" ? "••••••••" : undefined} />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Mots-clés</label>
@@ -346,8 +435,8 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
             {type === "JOOBLE" && (
               <>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Clé API Jooble</label>
-                  <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+                  <label className="text-xs font-medium text-muted-foreground">Clé API Jooble {mode === "edit" && "(laisser vide pour conserver)"}</label>
+                  <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={mode === "edit" ? "••••••••" : undefined} />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-1.5">
@@ -363,11 +452,11 @@ export function JobSourcesSettings({ sources: initialSources }: { sources: JobSo
             )}
           </DialogBody>
           <DialogFooter className="pb-5">
-            <Button variant="outline" onClick={() => setAddOpen(false)}>
+            <Button variant="outline" onClick={closeDialog}>
               Annuler
             </Button>
-            <Button onClick={submitAdd} disabled={pending}>
-              Tester & ajouter
+            <Button onClick={submit} disabled={pending}>
+              {mode === "edit" ? "Enregistrer & resynchroniser" : "Tester & ajouter"}
             </Button>
           </DialogFooter>
         </DialogContent>

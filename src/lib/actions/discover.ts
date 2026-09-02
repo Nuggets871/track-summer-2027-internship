@@ -73,6 +73,71 @@ export async function deleteJobSource(id: string) {
   revalidatePath("/settings");
 }
 
+const updateSourceSchema = z.object({
+  name: z.string().min(1, "Le nom est requis"),
+  config: z.record(z.string(), z.unknown()),
+});
+
+/**
+ * Updates a source in place (same id, so its existing JobListing history
+ * stays linked) — never deletes/recreates it. Any config key the form
+ * submitted as an empty string is treated as "leave unchanged" rather than
+ * "clear it", which is what lets a secret field (an API key) stay blank in
+ * the Edit dialog without wiping out the already-saved key.
+ */
+export async function updateJobSource(id: string, raw: z.infer<typeof updateSourceSchema>) {
+  const data = updateSourceSchema.parse(raw);
+  const existing = await prisma.jobSource.findUniqueOrThrow({ where: { id } });
+  const existingConfig = safeJsonParse<Record<string, unknown>>(existing.config, {});
+
+  const mergedConfig = { ...existingConfig };
+  for (const [key, value] of Object.entries(data.config)) {
+    if (value !== "" && value !== undefined && value !== null) mergedConfig[key] = value;
+  }
+
+  const provider = getProvider(existing.type);
+  const health = await provider.healthCheck(mergedConfig);
+  if (!health.ok) throw new Error(health.message);
+
+  await prisma.jobSource.update({
+    where: { id },
+    data: { name: data.name, config: JSON.stringify(mergedConfig), status: "OK", lastSyncError: null },
+  });
+
+  revalidateDiscover();
+  revalidatePath("/settings");
+  await syncSource({ ...existing, name: data.name, config: JSON.stringify(mergedConfig) });
+  revalidateDiscover();
+  revalidatePath("/settings");
+}
+
+/**
+ * Clones a source's type and full config (including any secret) into a new
+ * source — useful for a second search with the same credentials (e.g. the
+ * same Adzuna account, a different country or query). The new source is
+ * healthChecked and synced just like a freshly added one; nothing from the
+ * original's config is ever sent back to the browser to make this happen,
+ * it's all resolved server-side.
+ */
+export async function duplicateJobSource(id: string, newName?: string) {
+  const existing = await prisma.jobSource.findUniqueOrThrow({ where: { id } });
+  const created = await prisma.jobSource.create({
+    data: {
+      type: existing.type,
+      name: newName?.trim() || `Copie de ${existing.name}`,
+      config: existing.config,
+      status: "UNKNOWN",
+    },
+  });
+
+  revalidateDiscover();
+  revalidatePath("/settings");
+  await syncSource(created);
+  revalidateDiscover();
+  revalidatePath("/settings");
+  return { id: created.id, name: created.name, type: created.type };
+}
+
 export async function syncOneSource(id: string) {
   const source = await prisma.jobSource.findUniqueOrThrow({ where: { id } });
   const result = await syncSource(source);

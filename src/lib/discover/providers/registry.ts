@@ -49,3 +49,15 @@ export const SOURCE_TYPE_LABELS: Record<JobSourceType, string> = {
  * Sources UI to render the right fields and to remind that the key stays
  * local (stored in JobSource.config, never sent back to the browser). */
 export const API_KEY_SOURCE_TYPES: JobSourceType[] = ["ADZUNA", "JSEARCH", "REED", "JOOBLE"];
+
+/** Which config keys, per source type, are secrets — stripped whenever a
+ * source's config is read for the Edit dialog, and left untouched by
+ * updateJobSource() when the corresponding form field is submitted blank
+ * (blank = "keep the current value"), exactly like the DeepSeek key field
+ * in Settings > IA never re-displays a saved key. */
+export const SECRET_CONFIG_KEYS: Partial<Record<JobSourceType, string[]>> = {
+  ADZUNA: ["appKey"],
+  JSEARCH: ["apiKey"],
+  REED: ["apiKey"],
+  JOOBLE: ["apiKey"],
+};
