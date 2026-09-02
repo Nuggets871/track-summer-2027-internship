@@ -166,19 +166,69 @@ telle sur sa propre ligne, sans jamais faire échouer les autres.
 |---|---|---|
 | **Greenhouse** | L'API publique (sans clé) du job board d'**une** entreprise — [developers.greenhouse.io](https://developers.greenhouse.io/job-board.html) | Une entreprise à la fois : Greenhouse n'expose aucune recherche globale multi-entreprises |
 | **Lever** | L'API publique (sans clé) des offres d'**une** entreprise — [github.com/lever/postings-api](https://github.com/lever/postings-api) | Même limite : une entreprise à la fois |
+| **Adzuna** *(clé API)* | Vraie recherche par mots-clés, agrégée, sur 15+ pays — [developer.adzuna.com](https://developer.adzuna.com/) | Un pays + une recherche par source ; palier gratuit 250 requêtes/jour |
+| **JSearch** *(clé API, RapidAPI)* | Revendeur **licencié** de données Google for Jobs (qui agrège lui-même LinkedIn, Indeed, Glassdoor...) — la voie légale pour cette donnée, contrairement au scraping direct | Palier gratuit limité (~500 requêtes/mois selon RapidAPI) |
+| **Reed.co.uk** *(clé API)* | Vraie recherche par mots-clés, très complète | Royaume-Uni uniquement |
+| **Jooble** *(clé API)* | Vraie recherche par mots-clés, agrégée, internationale | Documentation/fiabilité un peu en retrait par rapport à Adzuna |
 | **Flux RSS** | Un vrai flux RSS/Atom (page carrières, job board) que tu renseignes | Fonctionne seulement si l'entreprise/le site publie effectivement un flux |
 | **Endpoint JSON** | Une URL que tu contrôles, retournant un tableau JSON d'offres | Aucune convention de champs imposée au-delà d'un mapping tolérant (title/company/location/url/description) |
 | **CSV (URL)** | Un CSV hébergé (ex. Google Sheet publié en CSV), re-téléchargé à chaque sync | Idem, mapping de colonnes tolérant mais pas magique |
 | **Import manuel** | Un CSV ou JSON collé/uploadé une fois | Pas de re-synchronisation automatique — c'est un import, pas une source live |
 
 **Ce qui n'est délibérément pas construit** : un scraper générique de pages
-carrières, ou un connecteur LinkedIn/Indeed — ces plateformes n'offrent pas
-d'API publique légitime pour ça, et prétendre le contraire serait fabriquer
-un faux moteur de recherche. Ajouter un jour un vrai partenaire/agrégateur ou
-un scraping ciblé et légal reste possible sans rien réécrire ailleurs : il
-suffit d'implémenter l'interface `JobSourceProvider`
+carrières, ou un accès direct (non officiel) à LinkedIn/Indeed — ces
+plateformes n'offrent pas d'API publique pour de la recherche d'offres, et
+scraper leurs pages directement violerait leurs conditions d'utilisation.
+JSearch (ci-dessus) est la voie légale pour atteindre une partie de cette
+donnée, via un revendeur qui en a le droit. Ajouter un jour un autre vrai
+partenaire/agrégateur reste possible sans rien réécrire ailleurs : il suffit
+d'implémenter l'interface `JobSourceProvider`
 (`src/lib/discover/types.ts` — `searchJobs()` / `healthCheck()`) et
 d'enregistrer le nouveau type dans `src/lib/discover/providers/registry.ts`.
+
+### Obtenir une clé API
+
+Aucune de ces clés n'est requise pour utiliser Discover (Greenhouse/Lever/
+RSS/CSV/JSON/import manuel n'en ont pas besoin) — elles ouvrent simplement
+une recherche par mots-clés plus large. Chaque clé saisie dans **Paramètres
+> Sources** est stockée uniquement dans ta base de données locale (jamais
+dans le code, jamais renvoyée à l'interface après l'ajout), suivant le même
+principe que la clé DeepSeek.
+
+**Adzuna** (recommandé)
+1. Va sur [developer.adzuna.com](https://developer.adzuna.com/) → "Register".
+2. Crée un compte gratuit (email + mot de passe).
+3. Une fois connecté, ton **App ID** et ta **App Key** apparaissent sur ton
+   tableau de bord ("My applications").
+4. Dans l'app, **Paramètres > Sources > Ajouter une source > Adzuna** :
+   renseigne `app_id`, `app_key`, le pays (code 2 lettres — `gb`, `fr`, `us`,
+   `de`, `sg`, `nl`...) et la recherche (`internship` par défaut).
+
+**JSearch (RapidAPI)**
+1. Va sur [rapidapi.com](https://rapidapi.com/) → crée un compte (gratuit).
+2. Cherche "JSearch" dans le RapidAPI Hub, ou va directement sur
+   [rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch](https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch).
+3. Clique "Subscribe to Test" et choisis le plan **Basic (gratuit)**.
+4. Dans l'onglet "Endpoints", ta clé apparaît dans les en-têtes de la requête
+   d'exemple (`X-RapidAPI-Key`).
+5. Dans l'app : **Paramètres > Sources > Ajouter une source > JSearch**,
+   colle la clé, et écris ta recherche en langage naturel (ex : *"software
+   engineering internship in London"*).
+
+**Reed.co.uk**
+1. Va sur [reed.co.uk/developers/jobseeker](https://www.reed.co.uk/developers/jobseeker).
+2. Renseigne le formulaire d'inscription (email professionnel/personnel).
+3. La clé API arrive par email.
+4. Dans l'app : **Paramètres > Sources > Ajouter une source > Reed.co.uk**,
+   colle la clé et tes mots-clés.
+
+**Jooble**
+1. Va sur [jooble.org/api/about](https://jooble.org/api/about).
+2. Remplis le formulaire de demande de clé (nom, email, usage prévu — décris
+   simplement "recherche de stage personnelle").
+3. La clé arrive par email, généralement rapidement.
+4. Dans l'app : **Paramètres > Sources > Ajouter une source > Jooble**,
+   colle la clé, tes mots-clés, et optionnellement un lieu.
 
 Chaque offre ingérée passe par le même pipeline, quelle que soit sa source :
 normalisation (`src/lib/discover/normalize.ts`, qui réutilise les heuristiques
