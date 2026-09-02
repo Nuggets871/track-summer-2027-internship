@@ -5,6 +5,7 @@ import { getReferenceData } from "@/lib/data/reference";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { WeeklyApplicationsChart, DistributionPie, StatCard } from "@/components/analytics/analytics-charts";
+import { JobImportWidget } from "@/components/job-import/job-import-widget";
 import { formatDate, daysUntil, cn } from "@/lib/utils";
 
 export default async function DashboardPage() {
@@ -19,6 +20,8 @@ export default async function DashboardPage() {
         </h1>
         <p className="text-sm text-muted-foreground">Vue d&apos;ensemble de votre recherche de stage été 2027.</p>
       </div>
+
+      <JobImportWidget reference={reference} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         <StatCard label="Opportunités" value={stats.total} />

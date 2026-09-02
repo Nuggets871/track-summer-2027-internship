@@ -2,7 +2,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui/dialog";
 import { useUIStore } from "@/store/ui-store";
-import { ApplicationForm } from "@/components/forms/application-form";
+import { QuickAddApplicationPanel } from "@/components/layout/quick-add-application-panel";
 import { CompanyForm } from "@/components/forms/company-form";
 import { ContactForm } from "@/components/forms/contact-form";
 import { TaskForm } from "@/components/forms/task-form";
@@ -30,7 +30,7 @@ export function QuickAddDialog({ reference }: { reference: ReferenceData }) {
           <DialogTitle>{quickAdd ? TITLES[quickAdd] : ""}</DialogTitle>
         </DialogHeader>
         <DialogBody className="pb-5">
-          {quickAdd === "application" && <ApplicationForm reference={reference} onSuccess={closeQuickAdd} compact />}
+          {quickAdd === "application" && <QuickAddApplicationPanel reference={reference} onSuccess={closeQuickAdd} />}
           {quickAdd === "company" && <CompanyForm reference={reference} onSuccess={closeQuickAdd} />}
           {quickAdd === "contact" && <ContactForm reference={reference} onSuccess={closeQuickAdd} />}
           {quickAdd === "task" && <TaskForm reference={reference} onSuccess={closeQuickAdd} />}

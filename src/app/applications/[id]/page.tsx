@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getApplicationDetail } from "@/lib/data/applications";
 import { getReferenceData } from "@/lib/data/reference";
 import { getSettings } from "@/lib/data/settings";
+import { getProfile } from "@/lib/data/profile";
 import { computePriorityScore } from "@/lib/scoring";
 import { TERMINAL_STAGE_KEYS } from "@/lib/constants";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,14 +11,27 @@ import { ApplicationOverviewTab } from "@/components/applications/application-ov
 import { ApplicationTimeline } from "@/components/applications/application-timeline";
 import { ApplicationContactsTab } from "@/components/applications/application-contacts-tab";
 import { ApplicationTasksTab } from "@/components/applications/application-tasks-tab";
+import { ApplicationPrepTab } from "@/components/applications/application-prep-tab";
 import { InterviewList } from "@/components/interviews/interview-list";
 import { InterviewPrepEditor } from "@/components/interviews/interview-prep-editor";
 import { DocumentsPanel } from "@/components/documents/documents-panel";
 import { NotesPanel } from "@/components/shared/notes-panel";
 
-export default async function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ApplicationDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { id } = await params;
-  const [application, reference, settings] = await Promise.all([getApplicationDetail(id), getReferenceData(), getSettings()]);
+  const { tab } = await searchParams;
+  const [application, reference, settings, profile] = await Promise.all([
+    getApplicationDetail(id),
+    getReferenceData(),
+    getSettings(),
+    getProfile(),
+  ]);
   if (!application) notFound();
 
   const priorityScore = computePriorityScore(
@@ -35,13 +49,19 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
     settings.priorityWeights,
   );
 
+  const isStale = Boolean(
+    application.jobAnalysis?.profileUpdatedAtSnapshot &&
+      profile.updatedAt.getTime() > application.jobAnalysis.profileUpdatedAtSnapshot.getTime(),
+  );
+
   return (
     <div className="flex flex-col gap-5">
       <ApplicationHeader application={application} reference={reference} stages={reference.stages} />
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue={tab === "preparation" ? "preparation" : "overview"}>
         <TabsList className="flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="preparation">Préparation</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="contacts">Contacts</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -52,6 +72,15 @@ export default async function ApplicationDetailPage({ params }: { params: Promis
 
         <TabsContent value="overview">
           <ApplicationOverviewTab application={application} priorityScore={priorityScore} />
+        </TabsContent>
+        <TabsContent value="preparation">
+          <ApplicationPrepTab
+            applicationId={application.id}
+            companyId={application.companyId}
+            jobAnalysis={application.jobAnalysis}
+            jobUrl={application.jobUrl}
+            isStale={isStale}
+          />
         </TabsContent>
         <TabsContent value="timeline">
           <ApplicationTimeline applicationId={application.id} interactions={application.interactions} />

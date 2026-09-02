@@ -36,9 +36,10 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui/dialog";
 import { ApplicationForm } from "@/components/forms/application-form";
-import { PRIORITY_LEVELS, labelFor, colorFor } from "@/lib/constants";
+import { JobImportWidget } from "@/components/job-import/job-import-widget";
+import { PRIORITY_LEVELS, ELIGIBILITY_STATUSES, labelFor, colorFor, matchLabel } from "@/lib/constants";
 import { cn, formatCurrency, formatDate, daysUntil } from "@/lib/utils";
-import { filterApplications, sortApplications, type ApplicationSortKey } from "@/lib/filters";
+import { filterApplications, sortApplications, type ApplicationFilters, type ApplicationSortKey } from "@/lib/filters";
 import {
   updateApplicationStatus,
   bulkDeleteApplications,
@@ -54,6 +55,7 @@ import type { PipelineStage } from "@prisma/client";
 const ALL_COLUMNS = [
   { key: "company", label: "Entreprise" },
   { key: "status", label: "Statut" },
+  { key: "match", label: "Match" },
   { key: "priority", label: "Priorité" },
   { key: "location", label: "Localisation" },
   { key: "deadline", label: "Deadline" },
@@ -63,6 +65,19 @@ const ALL_COLUMNS = [
   { key: "source", label: "Source" },
 ] as const;
 type ColumnKey = (typeof ALL_COLUMNS)[number]["key"];
+
+const QUICK_FILTERS: { key: string; label: string; filters: Partial<ApplicationFilters> }[] = [
+  { key: "match80", label: "Match > 80%", filters: { minMatch: 80 } },
+  { key: "match70", label: "Match > 70%", filters: { minMatch: 70 } },
+  { key: "deadline", label: "Deadline proche", filters: { deadlineWithinDays: 14 } },
+  { key: "toAnalyze", label: "À analyser", filters: { needsAnalysis: true } },
+];
+
+function matchScoreColor(score: number) {
+  if (score >= 70) return "#22c55e";
+  if (score >= 40) return "#f59e0b";
+  return "#f87171";
+}
 
 function DeadlineCell({ date }: { date: Date | null }) {
   if (!date) return <span className="text-subtle-foreground">—</span>;
@@ -89,6 +104,7 @@ export function ApplicationsTable({
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [countryFilter, setCountryFilter] = useState<string[]>([]);
   const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
   const [sort, setSort] = useState<ApplicationSortKey>("updatedAt");
   const [columns, setColumns] = useState<ColumnKey[]>(ALL_COLUMNS.map((c) => c.key));
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -97,14 +113,16 @@ export function ApplicationsTable({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
+    const activeQuickFilter = QUICK_FILTERS.find((f) => f.key === quickFilter)?.filters ?? {};
     const results = filterApplications(applications, {
       search,
       statusIds: statusFilter,
       countryIds: countryFilter,
       priorities: priorityFilter,
+      ...activeQuickFilter,
     });
     return sortApplications(results, sort);
-  }, [applications, search, statusFilter, countryFilter, priorityFilter, sort]);
+  }, [applications, search, statusFilter, countryFilter, priorityFilter, quickFilter, sort]);
 
   const allSelected = filtered.length > 0 && filtered.every((a) => selected.has(a.id));
   const toggleAll = () => {
@@ -161,11 +179,24 @@ export function ApplicationsTable({
 
   return (
     <div className="flex flex-col gap-4">
+      <JobImportWidget reference={reference} />
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-64">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-subtle-foreground" />
           <Input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
         </div>
+
+        {QUICK_FILTERS.map((f) => (
+          <Button
+            key={f.key}
+            variant={quickFilter === f.key ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setQuickFilter((prev) => (prev === f.key ? null : f.key))}
+          >
+            {f.label}
+          </Button>
+        ))}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -239,6 +270,7 @@ export function ApplicationsTable({
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem onClick={() => setSort("updatedAt")}>Dernière modification</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSort("match")}>Meilleur match</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setSort("deadline")}>Deadline</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setSort("score")}>Score de priorité</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setSort("company")}>Entreprise (A-Z)</DropdownMenuItem>
@@ -344,6 +376,7 @@ export function ApplicationsTable({
                 </TableHead>
                 {columns.includes("company") && <TableHead>Entreprise & poste</TableHead>}
                 {columns.includes("status") && <TableHead>Statut</TableHead>}
+                {columns.includes("match") && <TableHead>Match</TableHead>}
                 {columns.includes("priority") && <TableHead>Priorité</TableHead>}
                 {columns.includes("location") && <TableHead>Localisation</TableHead>}
                 {columns.includes("deadline") && <TableHead>Deadline</TableHead>}
@@ -397,6 +430,32 @@ export function ApplicationsTable({
                           ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                    </TableCell>
+                  )}
+                  {columns.includes("match") && (
+                    <TableCell>
+                      {app.jobAnalysis?.matchScore != null ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="flex size-7 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+                                style={{ backgroundColor: matchScoreColor(app.jobAnalysis.matchScore) }}
+                              >
+                                {app.jobAnalysis.matchScore}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{matchLabel(app.jobAnalysis.matchScore)}</p>
+                            <p className="text-muted-foreground">
+                              Eligibility : {labelFor(ELIGIBILITY_STATUSES, app.jobAnalysis.eligibilityStatus)}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className="text-xs text-subtle-foreground">—</span>
+                      )}
                     </TableCell>
                   )}
                   {columns.includes("priority") && (
