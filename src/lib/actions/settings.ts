@@ -31,6 +31,16 @@ const settingsSchema = z.object({
       staleness: z.number(),
     })
     .optional(),
+  matchWeights: z
+    .object({
+      skills: z.number(),
+      experience: z.number(),
+      education: z.number(),
+      languages: z.number(),
+      location: z.number(),
+      preferences: z.number(),
+    })
+    .optional(),
   hasSeenDemoNotice: z.boolean().optional(),
 });
 
@@ -38,7 +48,7 @@ export async function updateSettings(raw: z.infer<typeof settingsSchema>) {
   await getOrCreateSettingsRow();
   const data = settingsSchema.parse(raw);
 
-  const { preferredCountries, preferredSectors, preferredCurrencies, sourceOptions, priorityWeights, ...rest } = data;
+  const { preferredCountries, preferredSectors, preferredCurrencies, sourceOptions, priorityWeights, matchWeights, ...rest } = data;
 
   await prisma.setting.update({
     where: { id: "singleton" },
@@ -49,6 +59,7 @@ export async function updateSettings(raw: z.infer<typeof settingsSchema>) {
       ...(preferredCurrencies ? { preferredCurrencies: JSON.stringify(preferredCurrencies) } : {}),
       ...(sourceOptions ? { sourceOptions: JSON.stringify(sourceOptions) } : {}),
       ...(priorityWeights ? { priorityWeights: JSON.stringify(priorityWeights) } : {}),
+      ...(matchWeights ? { matchWeights: JSON.stringify(matchWeights) } : {}),
     },
   });
 

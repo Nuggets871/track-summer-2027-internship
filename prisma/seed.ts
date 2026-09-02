@@ -8,8 +8,9 @@
 import { PrismaClient } from "@prisma/client";
 import { writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { DEFAULT_PIPELINE_STAGES, DEFAULT_SOURCES, DEFAULT_CURRENCIES, DEFAULT_PRIORITY_WEIGHTS } from "../src/lib/constants";
+import { DEFAULT_PIPELINE_STAGES, DEFAULT_SOURCES, DEFAULT_CURRENCIES, DEFAULT_PRIORITY_WEIGHTS, DEFAULT_MATCH_WEIGHTS } from "../src/lib/constants";
 import { computeCompanyFitScore } from "../src/lib/scoring";
+import { computeJobMatch, computeEligibility } from "../src/lib/job-matching";
 
 const prisma = new PrismaClient();
 
@@ -35,6 +36,28 @@ async function main() {
       preferredCountries: JSON.stringify(["Royaume-Uni", "Singapour", "Suisse"]),
       preferredSectors: JSON.stringify(["Finance", "Tech", "Conseil"]),
       priorityWeights: JSON.stringify(DEFAULT_PRIORITY_WEIGHTS),
+      matchWeights: JSON.stringify(DEFAULT_MATCH_WEIGHTS),
+    },
+    update: {},
+  });
+
+  // 1bis. Candidate profile (used by the "add by link" match scoring) -----
+  await prisma.profile.upsert({
+    where: { id: "singleton" },
+    create: {
+      id: "singleton",
+      educationLevel: "MASTER",
+      fieldOfStudy: "Finance",
+      graduationYear: 2027,
+      yearsOfExperience: 1,
+      skills: JSON.stringify(["Excel", "PowerPoint", "Financial Modeling", "Valorisation", "Python"]),
+      languages: JSON.stringify([
+        { language: "Français", level: "NATIVE" },
+        { language: "Anglais", level: "FLUENT" },
+        { language: "Espagnol", level: "INTERMEDIATE" },
+      ]),
+      workAuthorization: "Citoyen UE — droit de travailler sans visa dans l'UE/EEE. À vérifier au cas par cas ailleurs.",
+      availabilityNote: "Disponible pour un stage de 3 à 6 mois à partir de l'été 2027.",
     },
     update: {},
   });
@@ -317,6 +340,65 @@ async function main() {
     });
 
     await prisma.company.update({ where: { id: companyId }, data: { fitScore: fit.total } });
+  }
+
+  // 7ter. Demo "add by link" job analysis, so the feature is visible out of
+  // the box without having to import a real offer first ---------------------
+  {
+    const demoJob = {
+      requiredSkills: ["Excel", "Financial Modeling", "PowerPoint", "Python", "Bloomberg"],
+      requiredLanguages: ["Anglais"],
+      requiredEducationLevel: "MASTER",
+      requiredExperienceYears: 0,
+      countryName: "Royaume-Uni",
+      remoteType: null as null,
+      sector: "Finance",
+      rawText:
+        "Summer Analyst — M&A at Meridian Bank International, London. Responsibilities: support live M&A transactions, build financial models, prepare client presentations. Qualifications: Master's degree, strong Excel and PowerPoint skills, Python a plus, fluent English required. Graduating between 2027 and 2028.",
+    };
+    const profileForMatch = {
+      educationLevel: "MASTER",
+      graduationYear: 2027,
+      yearsOfExperience: 1,
+      skills: ["Excel", "PowerPoint", "Financial Modeling", "Valorisation", "Python"],
+      languages: [
+        { language: "Français", level: "NATIVE" },
+        { language: "Anglais", level: "FLUENT" },
+        { language: "Espagnol", level: "INTERMEDIATE" },
+      ],
+      workAuthorization: "Citoyen UE",
+      availabilityNote: "Disponible été 2027",
+    };
+    const match = computeJobMatch(profileForMatch, demoJob, DEFAULT_MATCH_WEIGHTS, {
+      preferredCountries: ["Royaume-Uni", "Singapour", "Suisse"],
+      preferredSectors: ["Finance", "Tech", "Conseil"],
+    });
+    const eligibility = computeEligibility(profileForMatch, demoJob);
+
+    await prisma.jobAnalysis.create({
+      data: {
+        applicationId: applications["Summer Analyst — M&A"],
+        sourceUrl: "https://meridianbankinternational.example.com/careers/intern",
+        extractionMethod: "STRUCTURED_DATA",
+        rawExtractedText: demoJob.rawText,
+        responsibilities: "Support live M&A transactions, build financial models, prepare client presentations.",
+        qualifications: "Master's degree, strong Excel and PowerPoint skills, Python a plus, fluent English required.",
+        requiredSkills: JSON.stringify(demoJob.requiredSkills),
+        requiredLanguages: JSON.stringify(demoJob.requiredLanguages),
+        requiredEducationLevel: demoJob.requiredEducationLevel,
+        requiredExperienceYears: demoJob.requiredExperienceYears,
+        contractType: "Stage / Internship",
+        matchScore: match.total,
+        matchBreakdown: JSON.stringify(match.factors),
+        strengths: JSON.stringify(match.strengths),
+        watchouts: JSON.stringify(match.watchouts),
+        missingSkills: JSON.stringify(match.missingSkills),
+        recommendation: match.recommendation,
+        eligibilityStatus: eligibility.status,
+        eligibilityNotes: JSON.stringify(eligibility.notes),
+        profileUpdatedAtSnapshot: new Date(),
+      },
+    });
   }
 
   // 8. Interviews + prep --------------------------------------------------

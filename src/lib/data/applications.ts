@@ -11,6 +11,7 @@ export const applicationListInclude = {
   status: true,
   primaryContact: true,
   tags: true,
+  jobAnalysis: { select: { matchScore: true, eligibilityStatus: true, analyzedAt: true, profileUpdatedAtSnapshot: true } },
 } satisfies Prisma.ApplicationInclude;
 
 export type ApplicationWithRelations = Prisma.ApplicationGetPayload<{ include: typeof applicationListInclude }>;
@@ -62,6 +63,7 @@ export async function getApplicationDetail(id: string) {
       interviewPrep: { include: { questions: true } },
       notesList: { orderBy: { createdAt: "desc" } },
       tags: true,
+      jobAnalysis: true,
     },
   });
 }

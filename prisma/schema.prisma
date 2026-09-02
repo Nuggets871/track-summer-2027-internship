@@ -181,6 +181,7 @@ model Application {
   notesList     Note[]
   researchItems ResearchItem[]
   tags          Tag[]          @relation("ApplicationTags")
+  jobAnalysis   JobAnalysis?
 
   @@index([companyId])
   @@index([statusId])
@@ -558,6 +559,62 @@ model Setting {
   deadlineWarningDays  Int       @default(3)
   contactSilenceDays   Int       @default(20)
   priorityWeights      String? // JSON: { interest, deadlineProximity, fit, probability, relationship, staleness }
+  matchWeights         String? // JSON: { skills, experience, education, languages, location, preferences } — job-match dimension weights
   hasSeenDemoNotice    Boolean   @default(false)
   updatedAt            DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Candidate profile (singleton) — used to compute the job Match Score
+// ---------------------------------------------------------------------------
+
+model Profile {
+  id                String   @id @default("singleton")
+  educationLevel    String? // e.g. Licence, Bachelor, Master, MBA, PhD
+  fieldOfStudy      String?
+  graduationYear    Int?
+  yearsOfExperience Int      @default(0)
+  skills            String? // JSON array of strings
+  languages         String? // JSON array of { language, level }
+  workAuthorization String? // free-text personal note — NOT legal advice
+  availabilityNote  String?
+  updatedAt         DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Job posting import — extraction + match/eligibility analysis
+// ---------------------------------------------------------------------------
+
+model JobAnalysis {
+  id            String      @id @default(cuid())
+  applicationId String      @unique
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  sourceUrl        String?
+  extractionMethod String // STRUCTURED_DATA | HEURISTIC | MANUAL_PASTE
+  rawExtractedText String? // truncated readable text used for extraction, kept for transparency
+
+  responsibilities        String?
+  qualifications          String?
+  requiredSkills          String? // JSON array of strings
+  requiredLanguages       String? // JSON array of strings
+  requiredEducationLevel  String?
+  requiredExperienceYears Int?
+  contractType            String?
+
+  matchScore     Int? // 0-100
+  matchBreakdown String? // JSON array of { key, label, weight, score, detail }
+  strengths      String? // JSON array of strings
+  watchouts      String? // JSON array of strings
+  missingSkills  String? // JSON array of strings
+  recommendation String?
+
+  eligibilityStatus String? // LIKELY_ELIGIBLE | POSSIBLY_NOT_ELIGIBLE | UNCLEAR
+  eligibilityNotes  String? // JSON array of strings
+
+  analyzedAt               DateTime  @default(now())
+  profileUpdatedAtSnapshot DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

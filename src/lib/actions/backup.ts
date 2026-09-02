@@ -12,6 +12,7 @@ const EXPORTABLE_MODELS = [
   "company",
   "contact",
   "application",
+  "jobAnalysis",
   "interaction",
   "task",
   "event",
@@ -27,6 +28,7 @@ const EXPORTABLE_MODELS = [
   "weeklyReview",
   "savedView",
   "setting",
+  "profile",
 ] as const;
 
 /**
@@ -57,7 +59,7 @@ export async function importFullBackup(jsonText: string) {
     // Delete in dependency order (children first).
     const deletionOrder = [...EXPORTABLE_MODELS].reverse();
     for (const model of deletionOrder) {
-      if (model === "setting") continue;
+      if (model === "setting" || model === "profile") continue;
       // @ts-expect-error - dynamic model access
       await tx[model].deleteMany();
     }
@@ -69,6 +71,8 @@ export async function importFullBackup(jsonText: string) {
         const cleaned = reviveDates(row);
         if (model === "setting") {
           await tx.setting.upsert({ where: { id: cleaned.id }, create: cleaned, update: cleaned });
+        } else if (model === "profile") {
+          await tx.profile.upsert({ where: { id: cleaned.id }, create: cleaned, update: cleaned });
         } else {
           // @ts-expect-error - dynamic model access
           await tx[model].create({ data: cleaned });

@@ -7,7 +7,7 @@ import { ensureDefaultPipelineStages } from "@/lib/actions/backup";
  */
 export async function getReferenceData() {
   await ensureDefaultPipelineStages();
-  const [companies, countries, cities, contacts, stages, tags, settings, applications] = await Promise.all([
+  const [companies, countries, cities, contacts, stages, tags, settings, applications, documents] = await Promise.all([
     prisma.company.findMany({ select: { id: true, name: true, logoUrl: true }, orderBy: { name: "asc" } }),
     prisma.country.findMany({ select: { id: true, name: true, code: true }, orderBy: { name: "asc" } }),
     prisma.city.findMany({ select: { id: true, name: true, countryId: true }, orderBy: { name: "asc" } }),
@@ -22,6 +22,10 @@ export async function getReferenceData() {
       select: { id: true, title: true, companyId: true, company: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.document.findMany({
+      select: { id: true, name: true, category: true, version: true },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   return {
@@ -33,6 +37,7 @@ export async function getReferenceData() {
     tags,
     settings,
     applications: applications.map((a) => ({ id: a.id, name: `${a.company.name} — ${a.title}`, companyId: a.companyId })),
+    documents,
   };
 }
 
