@@ -23,10 +23,10 @@ export type AppSettings = {
 };
 
 export async function getOrCreateSettingsRow() {
-  const existing = await prisma.setting.findUnique({ where: { id: "singleton" } });
-  if (existing) return existing;
-  return prisma.setting.create({
-    data: {
+  return prisma.setting.upsert({
+    where: { id: "singleton" },
+    update: {},
+    create: {
       id: "singleton",
       sourceOptions: JSON.stringify(DEFAULT_SOURCES),
       preferredCurrencies: JSON.stringify(DEFAULT_CURRENCIES),
