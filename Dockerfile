@@ -2,6 +2,7 @@ FROM node:22-alpine AS dependencies
 
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY prisma/schema.prisma ./prisma/schema.prisma
 RUN npm ci
 
 FROM node:22-alpine AS build
@@ -17,6 +18,7 @@ FROM node:22-alpine AS production-dependencies
 
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY prisma/schema.prisma ./prisma/schema.prisma
 RUN npm ci --omit=dev && npm cache clean --force
 
 FROM node:22-alpine AS runtime
