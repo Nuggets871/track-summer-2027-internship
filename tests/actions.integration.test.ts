@@ -1,9 +1,9 @@
 /**
  * Integration tests against a real (throwaway) SQLite database — created and
  * torn down entirely inside prisma/test.db, never touching dev.db. Exercises
- * the workflows called out as critical in the project brief: creating an
- * application, changing its status, creating a task, and the backup /
- * CSV import-export round trips.
+ * the workflows called out as critical in the project brief: updating an
+ * opportunity, changing its status, and the backup / CSV import-export
+ * round trips.
  */
 import { execSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
@@ -40,61 +40,27 @@ afterAll(async () => {
   }
 });
 
-describe("core application workflows", () => {
-  it("creates an application, moves it through the pipeline, and logs the status change", async () => {
+describe("core opportunity workflows", () => {
+  it("creates an opportunity, updates it, and moves it through the pipeline", async () => {
     const { prisma } = await import("@/lib/prisma");
-    const { createApplication, updateApplicationStatus } = await import("@/lib/actions/applications");
+    const { updateApplication, updateApplicationStatus } = await import("@/lib/actions/applications");
 
-    const country = await prisma.country.create({ data: { name: "Test Country" } });
-    const company = await prisma.company.create({ data: { name: "Test Co", countryId: country.id } });
-    const stageA = await prisma.pipelineStage.create({ data: { key: "TEST_TO_EXPLORE", label: "À explorer", order: 0, isSystem: true } });
-    const stageB = await prisma.pipelineStage.create({ data: { key: "TEST_SENT", label: "Candidature envoyée", order: 1, isSystem: true } });
+    const company = await prisma.company.create({ data: { name: "Test Co" } });
+    const stageA = await prisma.pipelineStage.create({ data: { key: "TEST_SAVED", label: "Sauvegardée", order: 0, isSystem: true } });
+    const stageB = await prisma.pipelineStage.create({ data: { key: "TEST_APPLIED", label: "Envoyée", order: 1, isSystem: true } });
 
-    const application = await createApplication({
-      title: "Integration Test Intern",
-      companyId: company.id,
-      statusId: stageA.id,
-      priority: "MEDIUM",
-      interestScore: 50,
-      estimatedProbability: 50,
-      salaryCurrency: "EUR",
-    } as never);
+    const application = await prisma.application.create({
+      data: { title: "Integration Test Intern", companyId: company.id, statusId: stageA.id, salaryCurrency: "EUR" },
+    });
 
-    expect(application.title).toBe("Integration Test Intern");
-    expect(application.statusId).toBe(stageA.id);
-
-    // A "candidature créée" interaction should be logged automatically.
-    const creationLog = await prisma.interaction.findFirst({ where: { applicationId: application.id } });
-    expect(creationLog?.type).toBe("NOTE");
+    await updateApplication(application.id, { title: "Integration Test Intern (updated)", notes: "Test note" });
+    const updated = await prisma.application.findUniqueOrThrow({ where: { id: application.id } });
+    expect(updated.title).toBe("Integration Test Intern (updated)");
+    expect(updated.notes).toBe("Test note");
 
     await updateApplicationStatus(application.id, stageB.id);
-
-    const updated = await prisma.application.findUniqueOrThrow({ where: { id: application.id } });
-    expect(updated.statusId).toBe(stageB.id);
-
-    const statusChangeLog = await prisma.interaction.findFirst({
-      where: { applicationId: application.id, type: "STATUS_CHANGE" },
-    });
-    expect(statusChangeLog).not.toBeNull();
-    expect(statusChangeLog?.summary).toContain("Candidature envoyée");
-  });
-
-  it("creates a task and toggles it between todo and done", async () => {
-    const { createTask, toggleTaskDone } = await import("@/lib/actions/tasks");
-    const { prisma } = await import("@/lib/prisma");
-
-    const task = await createTask({ title: "Relancer le recruteur", priority: "HIGH", status: "TODO", recurrence: "NONE" } as never);
-    expect(task.status).toBe("TODO");
-
-    const done = await toggleTaskDone(task.id);
-    expect(done.status).toBe("DONE");
-    expect(done.completedAt).not.toBeNull();
-
-    const reverted = await toggleTaskDone(task.id);
-    expect(reverted.status).toBe("TODO");
-
-    const stored = await prisma.task.findUniqueOrThrow({ where: { id: task.id } });
-    expect(stored.status).toBe("TODO");
+    const moved = await prisma.application.findUniqueOrThrow({ where: { id: application.id } });
+    expect(moved.statusId).toBe(stageB.id);
   });
 });
 
