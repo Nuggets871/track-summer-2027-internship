@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateProfileRow } from "@/lib/data/profile";
 import { parseCvWithAI } from "@/lib/ai/prompts/cv-parsing";
 import { extractTextFromCvFile } from "@/lib/cv-file-text";
+import { recomputeAllLocalScores } from "@/lib/discover/scoring";
 
 const emptyToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 
@@ -58,8 +59,14 @@ export async function updateProfile(raw: ProfileInput) {
     },
   });
 
+  // The Match Score for every Discover listing depends on this profile —
+  // recompute it now (pure arithmetic, no AI call) rather than letting
+  // scores silently go stale until the next sync.
+  await recomputeAllLocalScores();
+
   revalidatePath("/", "layout");
   revalidatePath("/profile");
+  revalidatePath("/discover");
 }
 
 // --- CV upload & parsing --------------------------------------------------
@@ -157,6 +164,9 @@ export async function applyCvToProfile(raw: z.infer<typeof applyCvSchema>) {
     },
   });
 
+  await recomputeAllLocalScores();
+
   revalidatePath("/", "layout");
   revalidatePath("/profile");
+  revalidatePath("/discover");
 }
