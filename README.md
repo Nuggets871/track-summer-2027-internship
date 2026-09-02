@@ -26,6 +26,47 @@ recherche **internationale** (plusieurs pays, devises, langues, visas...).
 
 ## Fonctionnalités
 
+### 🔗 Ajout par lien (le workflow principal)
+Le moyen le plus rapide d'ajouter une opportunité : coller l'URL d'une offre
+(depuis LinkedIn, Indeed, Welcome to the Jungle, le site d'une entreprise...)
+dans la barre "Coller le lien d'une offre" (Dashboard, page Candidatures, ou
+bouton **+ Add**). L'application :
+
+1. récupère la page et en extrait le texte lisible ;
+2. lit en priorité les données structurées `schema.org/JobPosting` quand la
+   page les expose (LinkedIn, Indeed, la plupart des sites carrières basés sur
+   un ATS en embarquent pour le SEO) ;
+3. complète les champs encore manquants avec une IA (DeepSeek, optionnelle —
+   voir plus bas) contrainte à ne jamais inventer une information absente du
+   texte, sinon avec des règles heuristiques (mots-clés, regex) ;
+4. calcule un **Match Score** explicable (compétences 30 %, expérience 25 %,
+   formation 15 %, langues 10 %, localisation/disponibilité 10 %, préférences
+   10 % — pondérable dans Paramètres) et une **Eligibility** distincte
+   (jamais affirmée avec certitude à partir d'une offre ambiguë) ;
+5. affiche un écran **"Voici ce que nous avons détecté"**, entièrement
+   éditable, avant toute sauvegarde — un champ non détecté reste vide, jamais
+   deviné ;
+6. propose trois actions : **Save for later**, **I already applied**
+   (formulaire minimal — date, CV utilisé, lettre, source, moins de 30
+   secondes) ou **Prepare application** (ouvre l'onglet *Préparation* de la
+   candidature : score détaillé, compétences à mettre en avant, résumé de
+   l'offre, génération d'un brouillon de lettre de motivation, lien vers
+   l'annonce originale).
+
+Si la page ne peut pas être lue automatiquement (LinkedIn bloque souvent les
+robots), l'app le dit clairement et propose de **coller la description** à la
+place — le reste du traitement (extraction, score, sauvegarde) est identique.
+Les doublons (même URL, ou même entreprise + intitulé) sont détectés avant
+sauvegarde. Le score reste associé à l'analyse et à la version du profil
+utilisée : si le profil change ensuite, un bouton **Recalculate match**
+apparaît (jamais de recalcul automatique en masse).
+
+Le **Match** est aussi une colonne du Tracker, avec des filtres rapides
+(*Match > 80 %*, *Match > 70 %*, *Deadline proche*, *À analyser*) et un tri
+*Meilleur match*. Le profil utilisé pour le calcul (formation, compétences,
+langues, expérience, disponibilité, droit de travail) se renseigne dans
+**Paramètres > Profil & Matching**, avec les pondérations.
+
 ### Pilotage
 - **Dashboard** : compteurs clés, candidatures par semaine, répartition par
   statut/pays, deadlines à venir, pipeline, entreprises les plus prometteuses.
@@ -104,6 +145,16 @@ recherche **internationale** (plusieurs pays, devises, langues, visas...).
 | Icônes | **lucide-react** | Cohérent avec l'esthétique Linear/Attio |
 | CSV | **papaparse** | Import/export robuste |
 | Tests | **vitest** | Rapide, ESM natif, bonne intégration TypeScript |
+| IA (optionnelle) | **DeepSeek** (API compatible OpenAI) | Complète l'extraction d'offres et rédige des brouillons de lettre — jamais requise, l'app reste 100 % fonctionnelle sans clé |
+
+> **Note sur l'IA** : le *Match Score* n'est **jamais** calculé par l'IA — il
+> reste une formule pondérée et explicable (voir ci-dessus), pour rester
+> reproductible et vérifiable. L'IA (DeepSeek, via `DEEPSEEK_API_KEY`) n'est
+> utilisée que pour deux choses optionnelles : structurer le texte brut d'une
+> offre quand les données structurées de la page ne suffisent pas, et rédiger
+> un premier brouillon de lettre de motivation. Sans clé configurée, ces deux
+> étapes retombent respectivement sur l'extraction heuristique et un modèle
+> de lettre — rien n'est bloqué.
 
 > **Note sur le Map View** : la librairie `react-simple-maps` n'étant pas
 > encore compatible React 19 au moment de l'écriture, la carte est implémentée
@@ -116,10 +167,13 @@ Prérequis : **Node.js 20+** et npm.
 
 ```bash
 npm install
+cp .env.example .env
 ```
 
 Cela installe les dépendances et génère automatiquement le client Prisma
-(`postinstall`).
+(`postinstall`). Le `.env` créé fonctionne tel quel (SQLite local, aucune clé
+requise) — ouvrez-le seulement si vous voulez activer l'extraction IA
+optionnelle en renseignant `DEEPSEEK_API_KEY` (voir [Stack technique](#stack-technique)).
 
 Créez ensuite la base de données locale et appliquez le schéma :
 
@@ -207,10 +261,14 @@ src/
     ui/                  # Primitives de design system (bouton, dialog...)
     layout/              # Sidebar, topbar, command palette, quick-add
     forms/                # Formulaires react-hook-form par entité
+    job-import/            # Workflow "Ajout par lien" (widget, flow, score card)
     <domaine>/            # Composants spécifiques à un module (kanban, tasks...)
   lib/
     actions/              # Server Actions (une "use server" par domaine)
     data/                  # Requêtes de lecture côté serveur (Prisma)
+    ai/deepseek.ts          # Client IA optionnel (extraction, brouillon de lettre)
+    job-extraction.ts        # Parsing HTML/texte → données structurées (pur, testé)
+    job-matching.ts           # Match Score + Eligibility (pur, testé)
     constants.ts           # Statuts, priorités, catégories... (source de vérité)
     scoring.ts              # Priority Score, Fit Score, comparateur d'offres
     filters.ts               # Logique pure de recherche/filtre/tri (testée)
@@ -246,6 +304,13 @@ La suite couvre :
   défensif.
 - **Recherche/filtres/tri** (`tests/filters.test.ts`) : logique du tracker de
   candidatures, testée indépendamment du rendu React.
+- **Extraction d'offres** (`tests/job-extraction.test.ts`) : parsing des
+  données structurées `schema.org/JobPosting`, heuristiques (compétences,
+  salaire, remote, deadline...), et garantie qu'aucun champ absent n'est
+  inventé.
+- **Match Score & Eligibility** (`tests/job-matching.test.ts`) : chaque
+  dimension du score, respect des pondérations personnalisées, détection
+  d'une fenêtre de date de diplôme incompatible.
 - **Workflows critiques** (`tests/actions.integration.test.ts`) : création de
   candidature, changement de statut (avec journalisation automatique),
   création/complétion de tâche, export/import JSON complet, export/import CSV
@@ -274,6 +339,19 @@ supprimé manuellement — chaque document y référence un fichier physique.
 **Je veux repartir de zéro**
 `npm run db:reset` supprime et recrée entièrement la base de données locale,
 puis relance le seed de démonstration. Cette commande est irréversible.
+
+**"Impossible de lire automatiquement cette page" apparaît souvent**
+Normal pour LinkedIn et certains sites qui bloquent la récupération
+automatique côté serveur. Collez la description de l'offre dans la zone de
+texte proposée — l'extraction, le score et la sauvegarde fonctionnent à
+l'identique. Les sites basés sur un ATS (Greenhouse, Lever, Workday...) et la
+plupart des pages carrières d'entreprise fonctionnent généralement bien avec
+la récupération automatique.
+
+**Le Match Score semble incomplet ou neutre sur toutes les offres**
+Renseignez votre profil dans Paramètres > Profil & Matching (compétences,
+formation, langues, expérience) — sans profil, chaque dimension retombe sur
+une valeur neutre faute de données à comparer.
 
 ---
 
