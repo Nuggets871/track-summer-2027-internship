@@ -1,14 +1,18 @@
 # Summer 2027 Internship Tracker
 
 Application web **personnelle et 100% locale** pour piloter une recherche de
-stage à l'étranger de bout en bout : opportunités, candidatures, entreprises,
-contacts, networking, tâches, calendrier, documents, entretiens, offres,
-analytics et bien plus — un mélange de CRM personnel, job tracker, Notion,
-Airtable, Trello et dashboard analytique, pensé spécifiquement pour une
-recherche **internationale** (plusieurs pays, devises, langues, visas...).
+stage à l'étranger, organisée autour d'une seule logique simple :
+
+**Trouver → Comprendre le fit → Préparer → Postuler → Suivre.**
+
+Pas de CRM, pas d'ERP, pas quinze modules à maintenir à jour : une barre pour
+coller le lien d'une offre, un score de correspondance explicable, un
+assistant IA qui connaît vraiment votre profil, et un tableau de suivi. Moins
+de fonctionnalités, mais faites pour être utilisées tous les jours.
 
 > Toutes vos données restent sur votre machine, dans un fichier SQLite local.
-> Rien n'est envoyé à un service tiers.
+> Rien n'est envoyé à un service tiers, hormis — si vous choisissez de
+> configurer une clé — les appels à l'API DeepSeek décrits plus bas.
 
 ## Sommaire
 
@@ -26,109 +30,103 @@ recherche **internationale** (plusieurs pays, devises, langues, visas...).
 
 ## Fonctionnalités
 
-### 🔗 Ajout par lien (le workflow principal)
-Le moyen le plus rapide d'ajouter une opportunité : coller l'URL d'une offre
-(depuis LinkedIn, Indeed, Welcome to the Jungle, le site d'une entreprise...)
-dans la barre "Coller le lien d'une offre" (Dashboard, page Candidatures, ou
-bouton **+ Add**). L'application :
+### 🔗 Coller un lien — le workflow central
+L'action principale de l'app, disponible sur **Accueil**, **Opportunités** et
+le bouton **+ Add** global : collez l'URL d'une offre (LinkedIn, Indeed,
+Welcome to the Jungle, site carrières d'une entreprise...). L'application :
 
 1. récupère la page et en extrait le texte lisible ;
 2. lit en priorité les données structurées `schema.org/JobPosting` quand la
-   page les expose (LinkedIn, Indeed, la plupart des sites carrières basés sur
-   un ATS en embarquent pour le SEO) ;
-3. complète les champs encore manquants avec une IA (DeepSeek, optionnelle —
-   voir plus bas) contrainte à ne jamais inventer une information absente du
+   page les expose (zéro coût, zéro IA) ;
+3. complète les champs encore manquants avec une IA (DeepSeek, optionnelle)
+   strictement contrainte à ne jamais inventer une information absente du
    texte, sinon avec des règles heuristiques (mots-clés, regex) ;
-4. calcule un **Match Score** explicable (compétences 30 %, expérience 25 %,
+4. calcule un **Match Score** explicable et déterministe — jamais généré par
+   l'IA — pondéré par défaut ainsi : compétences 30 %, expérience 25 %,
    formation 15 %, langues 10 %, localisation/disponibilité 10 %, préférences
-   10 % — pondérable dans Paramètres) et une **Eligibility** distincte
-   (jamais affirmée avec certitude à partir d'une offre ambiguë) ;
-5. affiche un écran **"Voici ce que nous avons détecté"**, entièrement
-   éditable, avant toute sauvegarde — un champ non détecté reste vide, jamais
-   deviné ;
-6. propose trois actions : **Save for later**, **I already applied**
-   (formulaire minimal — date, CV utilisé, lettre, source, moins de 30
-   secondes) ou **Prepare application** (ouvre l'onglet *Préparation* de la
-   candidature : score détaillé, compétences à mettre en avant, résumé de
-   l'offre, génération d'un brouillon de lettre de motivation, lien vers
-   l'annonce originale).
+   personnelles 10 % (pondérable dans Paramètres > Matching) ;
+5. évalue une **Eligibility** séparée du Match (langage toujours prudent,
+   jamais une certitude — ex. fenêtre de date de diplôme incompatible) ;
+6. affiche un écran **"Voici ce que nous avons détecté"**, entièrement
+   éditable, avant toute sauvegarde — un champ non détecté reste marqué
+   "Non renseigné", jamais deviné ;
+7. propose trois actions : **Save for later**, **I already applied**
+   (formulaire minimal — date, note, source, prochaine action, moins de 30
+   secondes) ou **Prepare application** (ouvre directement la fiche de
+   l'opportunité pour continuer).
 
 Si la page ne peut pas être lue automatiquement (LinkedIn bloque souvent les
 robots), l'app le dit clairement et propose de **coller la description** à la
 place — le reste du traitement (extraction, score, sauvegarde) est identique.
 Les doublons (même URL, ou même entreprise + intitulé) sont détectés avant
 sauvegarde. Le score reste associé à l'analyse et à la version du profil
-utilisée : si le profil change ensuite, un bouton **Recalculate match**
-apparaît (jamais de recalcul automatique en masse).
+utilisée : si le profil change ensuite, une bannière **"Ton profil a changé
+depuis cette analyse"** apparaît sur la fiche, avec un bouton **Recalculer le
+match** — jamais de recalcul automatique en masse.
 
-Le **Match** est aussi une colonne du Tracker, avec des filtres rapides
-(*Match > 80 %*, *Match > 70 %*, *Deadline proche*, *À analyser*) et un tri
-*Meilleur match*. Le profil utilisé pour le calcul (formation, compétences,
-langues, expérience, disponibilité, droit de travail) se renseigne dans
-**Paramètres > Profil & Matching**, avec les pondérations.
+### 🏠 Accueil
+Une seule action évidente (coller un lien), tes meilleurs matches, tes
+candidatures actives, et tes actions à faire (deadlines, relances) — sans
+graphiques ni statistiques décoratives.
 
-### Pilotage
-- **Dashboard** : compteurs clés, candidatures par semaine, répartition par
-  statut/pays, deadlines à venir, pipeline, entreprises les plus prometteuses.
-- **Today** : le centre de commande quotidien — deadlines urgentes, relances,
-  tâches du jour, contacts à relancer, entretiens à préparer, opportunités
-  prioritaires, avec un **mode focus** pour les traiter une par une.
-- **Analytics** : taux de réponse / entretien / conversion, funnel complet,
-  performance par pays / secteur / source / networking vs candidature directe.
-- **Weekly Review** : bilan hebdomadaire semi-automatique (chiffres calculés,
-  notes qualitatives éditables), avec historique.
+### 📋 Opportunités
+Un tableau unique — Entreprise / Poste / Localisation / Match / Statut /
+Deadline / Prochaine action — avec recherche, filtres rapides (*Match > 80 %*,
+*Match > 70 %*, *Deadline proche*, *Non analysées*) et tri (*meilleur match*,
+deadline, entreprise, dernière mise à jour). Le pipeline tient en 7 statuts :
+Sauvegardée → En préparation → Envoyée → Entretien → Offre / Refusée /
+Archivée, modifiable directement depuis le tableau ou la fiche.
 
-### Candidatures
-- **Tracker** : tableau complet (recherche, filtres multiples, tri, colonnes
-  configurables, édition inline du statut, actions groupées, dupliquer,
-  export/import CSV).
-- **Kanban** : drag & drop, avec 4 vues (pipeline, priorité, pays, secteur).
-- **Wishlist** : entreprises Dream / High Priority / Target / Backup /
-  Exploratory, avec suivi de progression.
-- **Comparateur d'offres** : pondération des critères par vous-même, score
-  calculé et classement automatique.
-- **Fiche candidature** : onglets Overview / Timeline / Contacts / Documents /
-  Interview / Tasks / Notes, avec un **score de priorité expliqué en détail**.
+### 📄 Fiche opportunité
+Une seule page, pas d'onglets :
+- **Header** — entreprise, poste, lien original, statut, match %, suppression ;
+- **Aperçu** — champs éditables (poste, lieu, salaire, durée, dates) ;
+- **Compatibilité** — le Match Score détaillé facteur par facteur, points
+  forts, points de vigilance, compétences manquantes, recommandation, et un
+  bouton pour recalculer ;
+- **Candidature** — date d'envoi, CV utilisé (celui de ton profil), prochaine
+  action, notes, et un **générateur de lettre de motivation IA** (ton :
+  professionnel / naturel / concis / très personnalisé ; langue : français /
+  anglais) avec des actions d'affinage (plus courte, plus naturelle, plus
+  spécifique, focus expérience) ;
+- **Actions IA** — ré-analyser l'offre, améliorer son CV pour ce poste
+  précis, préparer l'entretien (contexte, points à mettre en avant, questions
+  probables, points faibles à anticiper, questions à poser), ou continuer la
+  conversation avec l'assistant.
 
-### Relations
-- **Entreprises** : fiche complète avec **Fit Score** calculé et détaillé,
-  candidatures, contacts, documents, notes, recherches liées.
-- **Contacts (CRM)** : tous types de contacts, timeline d'interactions.
-- **Networking** : pipeline dédié (identifié → contacté → réponse → call →
-  relation active → referral) avec métriques.
+### 👤 Profil
+Informations personnelles, formation, expériences, compétences, langues,
+préférences/disponibilité, et le CV — le tout utilisé pour le Match Score,
+les lettres de motivation et l'assistant. **Import de CV** : dépose un
+fichier (PDF/DOCX/TXT), l'IA en extrait les champs, tu coches ceux que tu
+veux appliquer — rien n'écrase ton profil sans confirmation explicite,
+champ par champ.
 
-### Organisation
-- **Tâches** : Today / Upcoming / Overdue / Completed, récurrence, liens vers
-  candidatures/entreprises/contacts.
-- **Calendrier** : vues mois / semaine / agenda, unifiant deadlines, relances,
-  entretiens, événements et tâches — création directe depuis le calendrier.
-- **Documents** : gestion de fichiers (CV, lettres, relevés, visa...) avec
-  versions, stockés localement dans `/uploads`.
-- **Lettres de motivation** : suivi de statut/version par candidature.
-- **Entretiens** : planification, préparation (pourquoi cette entreprise/ce
-  rôle/ce pays, questions comportementales/techniques/à poser) et banque de
-  questions réutilisable.
+### 💬 Assistant IA
+Une conversation qui connaît réellement ton profil, ton CV et toutes tes
+opportunités enregistrées (statuts, matchs, deadlines) — pour répondre à
+"quelles sont mes meilleures pistes ?", "sur quoi dois-je progresser ?", etc.
+Ne persiste pas entre les sessions : une conversation fraîche à chaque
+ouverture.
 
-### Exploration
-- **Research Database** : programmes, articles, classements, conseils visa,
-  plateformes, personnes — avec liens vers pays/entreprises.
-- **Country Hub** : vos pays ciblés, notes personnelles sur le visa et le coût
-  de la vie (**explicitement présentées comme des notes perso, pas un conseil
-  juridique**), salaires observés.
-- **Carte** : vue simplifiée par pays/ville (bulles proportionnelles au nombre
-  d'opportunités), cliquable pour voir le détail par ville.
+### ⚙️ Paramètres
+- **Général** — identité, période de recherche, pays/secteurs/devises suivis ;
+- **IA** — clé API DeepSeek (enregistrer / tester la connexion / afficher-
+  masquer / supprimer), stockée dans la base de données locale, jamais dans
+  le code ni journalisée, avec repli automatique sur la variable d'environnement
+  `DEEPSEEK_API_KEY` si aucune clé n'est enregistrée ;
+- **Matching** — pondération des 6 dimensions du Match Score ;
+- **Apparence** — thème clair/sombre/système ;
+- **Données & backup** — export/import JSON complet, export/import CSV,
+  suppression des données de démo.
 
 ### Transverse
-- **Recherche globale** (`Cmd/Ctrl+K`) : candidatures, entreprises, contacts,
-  tâches, documents, recherches, entretiens + création rapide.
-- **Notifications intelligentes** : deadlines proches, relances dues,
-  opportunités stagnantes, contacts silencieux — calculées à la volée à
-  partir de vos règles (Paramètres > Relances & scoring).
-- **Scoring transparent** : le *Priority Score* et le *Fit Score* affichent
-  toujours leur décomposition facteur par facteur.
-- **Bouton "+ Add"** global pour créer rapidement candidature / entreprise /
-  contact / tâche / événement / note depuis n'importe quelle page.
-- **Dark mode / Light mode**, sidebar repliable, raccourcis clavier.
+- **Recherche globale** (`Cmd/Ctrl+K`) : opportunités + navigation + création
+  rapide.
+- **Notifications intelligentes** : deadlines proches, prochaines actions en
+  retard, candidatures sans réponse depuis trop longtemps — calculées à la
+  volée, jamais stockées.
+- **Dark mode / Light mode**, sidebar repliable.
 
 ## Stack technique
 
@@ -138,28 +136,23 @@ langues, expérience, disponibilité, droit de travail) se renseigne dans
 | Langage | **TypeScript** (strict) | Sécurité de types sur tout le schéma de données |
 | UI | **Tailwind CSS v4** + composants **Radix UI** (style shadcn/ui) | Design system cohérent, accessible, sans dépendance à un kit fermé |
 | Base de données | **SQLite** via **Prisma ORM** | Un seul fichier local, zéro serveur à installer |
-| Graphiques | **Recharts** | Composants React déclaratifs, thème adaptable |
-| Formulaires | **react-hook-form** + **zod** | Validation partagée client/serveur |
-| Drag & drop | **@dnd-kit** | Léger, accessible, compatible React 19 |
-| État global léger | **zustand** | Sidebar, command palette, quick-add — pas de Redux nécessaire |
-| Icônes | **lucide-react** | Cohérent avec l'esthétique Linear/Attio |
+| Formulaires | **zod** | Validation partagée client/serveur |
+| État global léger | **zustand** | Sidebar, command palette, dialogue d'ajout — pas de Redux nécessaire |
+| Icônes | **lucide-react** | Cohérent avec l'esthétique Linear/Attio/Raycast |
 | CSV | **papaparse** | Import/export robuste |
+| Extraction de CV | **pdf-parse**, **mammoth** | Texte brut à partir d'un PDF ou d'un DOCX |
 | Tests | **vitest** | Rapide, ESM natif, bonne intégration TypeScript |
-| IA (optionnelle) | **DeepSeek** (API compatible OpenAI) | Complète l'extraction d'offres et rédige des brouillons de lettre — jamais requise, l'app reste 100 % fonctionnelle sans clé |
+| IA (optionnelle) | **DeepSeek** (API compatible OpenAI), derrière une interface `AiProvider` | Extraction avancée, lettres de motivation, analyse de CV, assistant — jamais requise, l'app reste 100 % fonctionnelle sans clé |
 
 > **Note sur l'IA** : le *Match Score* n'est **jamais** calculé par l'IA — il
-> reste une formule pondérée et explicable (voir ci-dessus), pour rester
-> reproductible et vérifiable. L'IA (DeepSeek, via `DEEPSEEK_API_KEY`) n'est
-> utilisée que pour deux choses optionnelles : structurer le texte brut d'une
-> offre quand les données structurées de la page ne suffisent pas, et rédiger
-> un premier brouillon de lettre de motivation. Sans clé configurée, ces deux
-> étapes retombent respectivement sur l'extraction heuristique et un modèle
-> de lettre — rien n'est bloqué.
-
-> **Note sur le Map View** : la librairie `react-simple-maps` n'étant pas
-> encore compatible React 19 au moment de l'écriture, la carte est implémentée
-> comme une vue simplifiée (bulles par pays/ville) plutôt qu'une carte
-> géographique réelle — pleinement fonctionnelle, mais sans fond de carte.
+> reste une formule pondérée et explicable, pour rester reproductible et
+> vérifiable. L'IA n'intervient que pour des tâches de texte (extraction,
+> lettres, analyse de CV, entretien, assistant), chacune avec son propre
+> prompt et des règles strictes de non-invention. Le code parle à une
+> interface `AiProvider` (`src/lib/ai/types.ts`) plutôt qu'à DeepSeek
+> directement : ajouter un autre fournisseur (OpenAI, Anthropic, Gemini) est
+> une question d'un nouveau fichier dans `src/lib/ai/providers/`, pas d'une
+> réécriture de la logique métier.
 
 ## Installation
 
@@ -172,8 +165,9 @@ cp .env.example .env
 
 Cela installe les dépendances et génère automatiquement le client Prisma
 (`postinstall`). Le `.env` créé fonctionne tel quel (SQLite local, aucune clé
-requise) — ouvrez-le seulement si vous voulez activer l'extraction IA
-optionnelle en renseignant `DEEPSEEK_API_KEY` (voir [Stack technique](#stack-technique)).
+requise) — ouvrez-le seulement si vous voulez activer les fonctionnalités IA
+en renseignant `DEEPSEEK_API_KEY` (vous pouvez aussi la renseigner plus tard,
+sans toucher au code, depuis **Paramètres > IA** dans l'application).
 
 Créez ensuite la base de données locale et appliquez le schéma :
 
@@ -206,25 +200,31 @@ npm start
 ## Base de données
 
 Le schéma relationnel complet vit dans [`prisma/schema.prisma`](prisma/schema.prisma).
-Entités principales : `Country`, `City`, `Company`, `Contact`, `Application`,
-`PipelineStage` (statuts personnalisables), `Interaction` (timeline),
-`Task`, `Event`, `Document`, `CoverLetter`, `Interview`, `InterviewPrep`,
-`Question`, `Offer`, `ResearchItem`, `Note`, `Tag`, `WeeklyReview`,
-`SavedView`, `Setting`.
+Entités actives : `Country`, `City`, `Company`, `Application`, `PipelineStage`
+(les 7 statuts du pipeline), `JobAnalysis` (Match Score, éligibilité,
+extraction — une par opportunité), `CoverLetter`, `Profile` (singleton),
+`Setting` (singleton, y compris la clé IA), `Document` (fichiers uploadés,
+CV compris).
+
+Le schéma conserve aussi quelques tables historiques (`Contact`, `Task`,
+`Event`, `Interview`, `Offer`, `ResearchItem`...) issues d'une version
+antérieure plus chargée de l'application, aujourd'hui sans UI dédiée — elles
+ne sont ni lues ni écrites par le produit actuel, et n'ont volontairement pas
+été supprimées du schéma pour ne jamais risquer de perdre des données d'une
+installation existante.
 
 SQLite ne supportant pas les enums natifs, les champs de type "statut" sont
-des chaînes validées côté application (`src/lib/constants.ts`) — ce qui permet
-aussi de créer des statuts de candidature personnalisés sans migration.
+des chaînes validées côté application (`src/lib/constants.ts`).
 
 Le fichier de base de données (`prisma/dev.db`) n'est **jamais commité** (voir
 `.gitignore`) : chaque installation locale a ses propres données.
 
 ## Données de démonstration
 
-Au premier `npm run db:seed`, l'application charge ~15 entreprises fictives
-réparties sur plusieurs pays, avec des candidatures à différents stades du
-pipeline, des contacts, tâches, entretiens, documents (de vrais petits
-fichiers texte pour que le téléchargement fonctionne) et recherches.
+Au premier `npm run db:seed`, l'application charge un profil candidat de
+démonstration et une poignée d'opportunités fictives à différents stades du
+pipeline (dont deux avec une analyse de match complète), pour explorer
+immédiatement le Match Score, la fiche opportunité et les actions IA.
 
 Ces données sont **clairement fictives** et marquées `isDemo: true` en base.
 Elles ne sont jamais présentées comme vos vraies candidatures. Pour les
@@ -255,22 +255,33 @@ prisma/
   migrations/            # Historique des migrations
   seed.ts                # Données de démonstration
 src/
-  app/                   # Pages (App Router) — une route par module
-    api/documents/[id]/  # Téléchargement des fichiers uploadés
+  app/                   # Pages (App Router)
+    page.tsx               # Accueil
+    opportunities/          # Liste + fiche détail
+    profile/                # Profil candidat + import CV
+    assistant/              # Chat IA
+    settings/               # Général / IA / Matching / Apparence / Données
+    api/documents/[id]/     # Téléchargement des fichiers uploadés (CV inclus)
   components/
     ui/                  # Primitives de design system (bouton, dialog...)
     layout/              # Sidebar, topbar, command palette, quick-add
-    forms/                # Formulaires react-hook-form par entité
-    job-import/            # Workflow "Ajout par lien" (widget, flow, score card)
-    <domaine>/            # Composants spécifiques à un module (kanban, tasks...)
+    job-import/            # Workflow "coller un lien" (widget, flow, score card)
+    opportunities/          # Tableau + sections de la fiche opportunité
+    profile/                # Formulaire profil, import/review de CV
+    assistant/              # Interface de chat
+    settings/               # Formulaires de chaque onglet Paramètres
   lib/
     actions/              # Server Actions (une "use server" par domaine)
     data/                  # Requêtes de lecture côté serveur (Prisma)
-    ai/deepseek.ts          # Client IA optionnel (extraction, brouillon de lettre)
+    ai/
+      types.ts               # Interface AiProvider — le code métier ne connaît qu'elle
+      provider.ts             # Résolution du fournisseur configuré + clé
+      providers/deepseek.ts   # Implémentation DeepSeek
+      prompts/                # Un module par tâche IA (extraction, lettre, CV, entretien, assistant)
+    cv-file-text.ts        # Extraction de texte PDF/DOCX/texte brut
     job-extraction.ts        # Parsing HTML/texte → données structurées (pur, testé)
     job-matching.ts           # Match Score + Eligibility (pur, testé)
-    constants.ts           # Statuts, priorités, catégories... (source de vérité)
-    scoring.ts              # Priority Score, Fit Score, comparateur d'offres
+    constants.ts           # Statuts, niveaux, catégories... (source de vérité)
     filters.ts               # Logique pure de recherche/filtre/tri (testée)
     utils.ts                  # Formatage dates/devises, helpers divers
   store/                    # État UI léger (zustand)
@@ -286,10 +297,10 @@ suivi :
 - **Backup complet (JSON)** — Paramètres > Données & backup > "Exporter tout".
   Réimportable à l'identique (remplace les données actuelles, après
   confirmation explicite).
-- **Export CSV des candidatures** — depuis la page Tracker, avec import CSV
-  symétrique (les entreprises/pays manquants sont créés automatiquement).
-- Les documents uploadés vivent dans `/uploads` : pensez à les inclure dans
-  vos propres sauvegardes de fichiers si vous changez de machine.
+- **Export CSV des opportunités** — avec import CSV symétrique (les
+  entreprises/pays manquants sont créés automatiquement).
+- Les fichiers uploadés (CV compris) vivent dans `/uploads` : pensez à les
+  inclure dans vos propres sauvegardes de fichiers si vous changez de machine.
 
 ## Tests
 
@@ -298,12 +309,10 @@ npm test
 ```
 
 La suite couvre :
-- **Scoring** (`tests/scoring.test.ts`) : Priority Score, Fit Score,
-  comparateur d'offres, détection de stagnation.
 - **Utilitaires** (`tests/utils.test.ts`) : dates, devises, slugs, parsing JSON
   défensif.
-- **Recherche/filtres/tri** (`tests/filters.test.ts`) : logique du tracker de
-  candidatures, testée indépendamment du rendu React.
+- **Recherche/filtres/tri** (`tests/filters.test.ts`) : logique du tableau
+  Opportunités, testée indépendamment du rendu React.
 - **Extraction d'offres** (`tests/job-extraction.test.ts`) : parsing des
   données structurées `schema.org/JobPosting`, heuristiques (compétences,
   salaire, remote, deadline...), et garantie qu'aucun champ absent n'est
@@ -311,11 +320,10 @@ La suite couvre :
 - **Match Score & Eligibility** (`tests/job-matching.test.ts`) : chaque
   dimension du score, respect des pondérations personnalisées, détection
   d'une fenêtre de date de diplôme incompatible.
-- **Workflows critiques** (`tests/actions.integration.test.ts`) : création de
-  candidature, changement de statut (avec journalisation automatique),
-  création/complétion de tâche, export/import JSON complet, export/import CSV
-  — exécutés contre une vraie base SQLite jetable (`prisma/test.db`, jamais la
-  base de développement).
+- **Workflows critiques** (`tests/actions.integration.test.ts`) : mise à jour
+  d'une opportunité, changement de statut, export/import JSON complet,
+  export/import CSV — exécutés contre une vraie base SQLite jetable
+  (`prisma/test.db`, jamais la base de développement).
 
 ## Troubleshooting
 
@@ -323,18 +331,19 @@ La suite couvre :
 Copiez `.env.example` en `.env` (`cp .env.example .env`) avant de lancer les
 commandes Prisma.
 
-**La page affiche des statuts/pays vides après un `npm install` frais**
+**La page affiche des statuts vides après un `npm install` frais**
 Lancez `npm run db:migrate` puis `npm run db:seed` — sans base de données
-migrée, l'application n'a aucune donnée à afficher (les statuts par défaut
-sont toutefois recréés automatiquement au premier chargement d'une page).
+migrée, l'application n'a aucune donnée à afficher (les 7 statuts par défaut
+sont toutefois recréés automatiquement au premier chargement d'une page, y
+compris pour une base migrée depuis une version antérieure de l'app).
 
 **Avertissement `package.json#prisma` déprécié au lancement des commandes Prisma**
 C'est un avertissement de Prisma 6 annonçant un changement de configuration
 dans Prisma 7 (fichier `prisma.config.ts`). Sans impact aujourd'hui.
 
-**Les fichiers téléchargés depuis "Documents" sont introuvables**
+**Le CV téléchargé depuis le profil est introuvable**
 Vérifiez que le dossier `/uploads` existe à la racine du projet et n'a pas été
-supprimé manuellement — chaque document y référence un fichier physique.
+supprimé manuellement.
 
 **Je veux repartir de zéro**
 `npm run db:reset` supprime et recrée entièrement la base de données locale,
@@ -349,9 +358,15 @@ plupart des pages carrières d'entreprise fonctionnent généralement bien avec
 la récupération automatique.
 
 **Le Match Score semble incomplet ou neutre sur toutes les offres**
-Renseignez votre profil dans Paramètres > Profil & Matching (compétences,
-formation, langues, expérience) — sans profil, chaque dimension retombe sur
-une valeur neutre faute de données à comparer.
+Renseignez votre profil (compétences, formation, langues, expérience) sur la
+page **Profil** — sans profil, chaque dimension retombe sur une valeur
+neutre faute de données à comparer.
+
+**Les fonctionnalités IA (lettre, analyse de CV, assistant) sont grisées**
+Configurez une clé API DeepSeek dans **Paramètres > IA**, ou définissez
+`DEEPSEEK_API_KEY` dans `.env`. Sans clé, l'app reste pleinement utilisable :
+l'extraction retombe sur l'analyse heuristique, et les lettres de motivation
+sur un modèle simple à personnaliser soi-même.
 
 ---
 
