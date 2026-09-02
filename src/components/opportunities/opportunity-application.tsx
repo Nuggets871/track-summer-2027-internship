@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles, Link2, Copy, Check, ExternalLink } from "lucide-react";
+import { FileText, Sparkles, Link2, Check } from "lucide-react";
 import { updateApplication } from "@/lib/actions/applications";
 import { generateCoverLetterForApplication, refineCoverLetter, saveCoverLetterContent } from "@/lib/actions/ai-actions";
 import type { AppProfile } from "@/lib/data/profile";
+import { cn } from "@/lib/utils";
 
 type ApplicationDetail = Application & { coverLetter: CoverLetter | null };
 
@@ -34,10 +35,22 @@ function toDateInput(d: Date | null) {
   return d ? new Date(d).toISOString().slice(0, 10) : "";
 }
 
+type LinkColor = "linkedin" | "github" | "portfolio";
+
+// Brand-associated, theme-aware (light/dark) — a soft tint at rest, filled
+// in a touch more on hover so the whole chip reads as one clickable target.
+const LINK_COLOR_STYLES: Record<LinkColor, string> = {
+  linkedin: "border-[#0A66C2]/30 bg-[#0A66C2]/10 text-[#0A66C2] hover:bg-[#0A66C2]/20 dark:text-[#6DB3F2]",
+  github: "border-zinc-500/30 bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-300",
+  portfolio: "border-violet-500/30 bg-violet-500/10 text-violet-600 hover:bg-violet-500/20 dark:text-violet-400",
+};
+
 /** A quick copy-to-clipboard chip for a profile link — most application
  * forms ask for LinkedIn/GitHub/portfolio as separate fields, so a single
- * combined "copy all" wouldn't actually save a step. */
-function LinkChip({ label, url }: { label: string; url: string }) {
+ * combined "copy all" wouldn't actually save a step. The whole chip is the
+ * click target (no separate button-within-a-button), and briefly flashes a
+ * success tint + checkmark to confirm the copy. */
+function LinkChip({ label, url, color }: { label: string; url: string; color: LinkColor }) {
   const [copied, setCopied] = useState(false);
 
   const copy = () => {
@@ -46,22 +59,24 @@ function LinkChip({ label, url }: { label: string; url: string }) {
       .then(() => {
         setCopied(true);
         toast.success(`${label} copié`);
-        setTimeout(() => setCopied(false), 1500);
+        setTimeout(() => setCopied(false), 1200);
       })
       .catch(() => toast.error("Impossible de copier — copie le lien manuellement."));
   };
 
   return (
-    <div className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs">
-      <Link2 className="size-3.5 text-muted-foreground" />
-      <span className="font-medium text-foreground">{label}</span>
-      <button type="button" onClick={copy} title="Copier le lien" className="text-muted-foreground hover:text-foreground">
-        {copied ? <Check className="size-3.5 text-success-foreground" /> : <Copy className="size-3.5" />}
-      </button>
-      <a href={url} target="_blank" rel="noopener noreferrer" title="Ouvrir" className="text-muted-foreground hover:text-foreground">
-        <ExternalLink className="size-3.5" />
-      </a>
-    </div>
+    <button
+      type="button"
+      onClick={copy}
+      title={`Copier le lien ${label}`}
+      className={cn(
+        "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-all duration-200 ease-out",
+        copied ? "scale-105 border-success/40 bg-success-soft text-success-foreground" : LINK_COLOR_STYLES[color],
+      )}
+    >
+      {copied ? <Check className="size-3.5" /> : <Link2 className="size-3.5" />}
+      {label}
+    </button>
   );
 }
 
@@ -125,9 +140,9 @@ export function OpportunityApplication({ application, profile }: { application: 
         {profile.linkedinUrl || profile.githubUrl || profile.portfolioUrl ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">Liens rapides :</span>
-            {profile.linkedinUrl && <LinkChip label="LinkedIn" url={profile.linkedinUrl} />}
-            {profile.githubUrl && <LinkChip label="GitHub" url={profile.githubUrl} />}
-            {profile.portfolioUrl && <LinkChip label="Portfolio" url={profile.portfolioUrl} />}
+            {profile.linkedinUrl && <LinkChip label="LinkedIn" url={profile.linkedinUrl} color="linkedin" />}
+            {profile.githubUrl && <LinkChip label="GitHub" url={profile.githubUrl} color="github" />}
+            {profile.portfolioUrl && <LinkChip label="Portfolio" url={profile.portfolioUrl} color="portfolio" />}
           </div>
         ) : (
           <Link href="/profile" className="text-xs text-muted-foreground hover:underline">
