@@ -21,6 +21,9 @@ export type AppProfile = ProfileForMatching & {
   lastName: string | null;
   email: string | null;
   phone: string | null;
+  linkedinUrl: string | null;
+  githubUrl: string | null;
+  portfolioUrl: string | null;
   fieldOfStudy: string | null;
   experiences: ProfileExperience[];
   cvDocumentId: string | null;
@@ -36,6 +39,9 @@ export async function getProfile(): Promise<AppProfile> {
     lastName: row.lastName,
     email: row.email,
     phone: row.phone,
+    linkedinUrl: row.linkedinUrl,
+    githubUrl: row.githubUrl,
+    portfolioUrl: row.portfolioUrl,
     educationLevel: row.educationLevel,
     fieldOfStudy: row.fieldOfStudy,
     graduationYear: row.graduationYear,

@@ -588,6 +588,12 @@ model Profile {
   email     String?
   phone     String?
 
+  // Links most job applications ask for directly — kept front and center
+  // on the Opportunity detail page's Application section for quick copy.
+  linkedinUrl  String?
+  githubUrl    String?
+  portfolioUrl String?
+
   // Education
   educationLevel    String? // e.g. Licence, Bachelor, Master, MBA, PhD
   fieldOfStudy      String?

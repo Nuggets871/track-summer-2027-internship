@@ -120,12 +120,14 @@ Une seule page, pas d'onglets :
   conversation avec l'assistant.
 
 ### 👤 Profil
-Informations personnelles, formation, expériences, compétences, langues,
-préférences/disponibilité, et le CV — le tout utilisé pour le Match Score,
-les lettres de motivation et l'assistant. **Import de CV** : dépose un
-fichier (PDF/DOCX/TXT), l'IA en extrait les champs, tu coches ceux que tu
-veux appliquer — rien n'écrase ton profil sans confirmation explicite,
-champ par champ.
+Informations personnelles (dont LinkedIn/GitHub/portfolio), formation,
+expériences, compétences, langues, préférences/disponibilité, et le CV — le
+tout utilisé pour le Match Score, les lettres de motivation et l'assistant.
+**Import de CV** : dépose un fichier (PDF/DOCX/TXT), l'IA en extrait les
+champs, tu coches ceux que tu veux appliquer — rien n'écrase ton profil sans
+confirmation explicite, champ par champ. Les liens LinkedIn/GitHub/portfolio
+réapparaissent avec un bouton de copie sur chaque fiche opportunité, dans la
+section Candidature — pratique quand un formulaire externe les redemande.
 
 ### 💬 Assistant IA
 Une conversation qui connaît réellement ton profil, ton CV et toutes tes

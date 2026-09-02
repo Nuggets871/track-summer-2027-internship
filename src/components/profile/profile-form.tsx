@@ -18,6 +18,9 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
   const [lastName, setLastName] = useState(profile.lastName ?? "");
   const [email, setEmail] = useState(profile.email ?? "");
   const [phone, setPhone] = useState(profile.phone ?? "");
+  const [linkedinUrl, setLinkedinUrl] = useState(profile.linkedinUrl ?? "");
+  const [githubUrl, setGithubUrl] = useState(profile.githubUrl ?? "");
+  const [portfolioUrl, setPortfolioUrl] = useState(profile.portfolioUrl ?? "");
   const [educationLevel, setEducationLevel] = useState(profile.educationLevel ?? "");
   const [fieldOfStudy, setFieldOfStudy] = useState(profile.fieldOfStudy ?? "");
   const [graduationYear, setGraduationYear] = useState(profile.graduationYear?.toString() ?? "");
@@ -37,6 +40,9 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
         lastName: lastName || null,
         email: email || null,
         phone: phone || null,
+        linkedinUrl: linkedinUrl || null,
+        githubUrl: githubUrl || null,
+        portfolioUrl: portfolioUrl || null,
         educationLevel: educationLevel || null,
         fieldOfStudy: fieldOfStudy || null,
         graduationYear: graduationYear ? Number(graduationYear) : null,
@@ -69,6 +75,26 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
           </Field>
           <Field label="Téléphone">
             <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Liens</CardTitle>
+          <CardDescription>
+            Affichés avec un bouton de copie sur chaque candidature — pratique quand un formulaire externe les demande.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Field label="LinkedIn">
+            <Input value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="linkedin.com/in/..." />
+          </Field>
+          <Field label="GitHub">
+            <Input value={githubUrl} onChange={(e) => setGithubUrl(e.target.value)} placeholder="github.com/..." />
+          </Field>
+          <Field label="Portfolio">
+            <Input value={portfolioUrl} onChange={(e) => setPortfolioUrl(e.target.value)} placeholder="tonsite.com" />
           </Field>
         </CardContent>
       </Card>

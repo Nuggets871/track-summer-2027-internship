@@ -10,6 +10,15 @@ import { recomputeAllLocalScores } from "@/lib/discover/scoring";
 
 const emptyToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 
+/** Accepts "github.com/x" as readily as "https://github.com/x" — job forms
+ * and users alike rarely bother typing the scheme, and a link without one
+ * silently breaks both the "open" button and copy-paste into most fields. */
+const normalizeUrl = (v: unknown) => {
+  if (typeof v !== "string" || !v.trim()) return null;
+  const trimmed = v.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
 const experienceSchema = z.object({
   title: z.string(),
   company: z.string(),
@@ -23,6 +32,9 @@ const profileSchema = z.object({
   lastName: z.preprocess(emptyToNull, z.string().nullable().optional()),
   email: z.preprocess(emptyToNull, z.string().nullable().optional()),
   phone: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  linkedinUrl: z.preprocess(normalizeUrl, z.string().nullable().optional()),
+  githubUrl: z.preprocess(normalizeUrl, z.string().nullable().optional()),
+  portfolioUrl: z.preprocess(normalizeUrl, z.string().nullable().optional()),
   educationLevel: z.preprocess(emptyToNull, z.string().nullable().optional()),
   fieldOfStudy: z.preprocess(emptyToNull, z.string().nullable().optional()),
   graduationYear: z.preprocess(emptyToNull, z.coerce.number().int().nullable().optional()),
@@ -47,6 +59,9 @@ export async function updateProfile(raw: ProfileInput) {
       lastName: data.lastName,
       email: data.email,
       phone: data.phone,
+      linkedinUrl: data.linkedinUrl,
+      githubUrl: data.githubUrl,
+      portfolioUrl: data.portfolioUrl,
       educationLevel: data.educationLevel,
       fieldOfStudy: data.fieldOfStudy,
       graduationYear: data.graduationYear,

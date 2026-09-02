@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles } from "lucide-react";
+import { FileText, Sparkles, Link2, Copy, Check, ExternalLink } from "lucide-react";
 import { updateApplication } from "@/lib/actions/applications";
 import { generateCoverLetterForApplication, refineCoverLetter, saveCoverLetterContent } from "@/lib/actions/ai-actions";
 import type { AppProfile } from "@/lib/data/profile";
@@ -32,6 +32,37 @@ const REFINE_ACTIONS = [
 
 function toDateInput(d: Date | null) {
   return d ? new Date(d).toISOString().slice(0, 10) : "";
+}
+
+/** A quick copy-to-clipboard chip for a profile link — most application
+ * forms ask for LinkedIn/GitHub/portfolio as separate fields, so a single
+ * combined "copy all" wouldn't actually save a step. */
+function LinkChip({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        setCopied(true);
+        toast.success(`${label} copié`);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => toast.error("Impossible de copier — copie le lien manuellement."));
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs">
+      <Link2 className="size-3.5 text-muted-foreground" />
+      <span className="font-medium text-foreground">{label}</span>
+      <button type="button" onClick={copy} title="Copier le lien" className="text-muted-foreground hover:text-foreground">
+        {copied ? <Check className="size-3.5 text-success-foreground" /> : <Copy className="size-3.5" />}
+      </button>
+      <a href={url} target="_blank" rel="noopener noreferrer" title="Ouvrir" className="text-muted-foreground hover:text-foreground">
+        <ExternalLink className="size-3.5" />
+      </a>
+    </div>
+  );
 }
 
 export function OpportunityApplication({ application, profile }: { application: ApplicationDetail; profile: AppProfile }) {
@@ -91,6 +122,19 @@ export function OpportunityApplication({ application, profile }: { application: 
         <CardDescription>Suivi de l&apos;envoi, prochaine action, et lettre de motivation.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
+        {profile.linkedinUrl || profile.githubUrl || profile.portfolioUrl ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Liens rapides :</span>
+            {profile.linkedinUrl && <LinkChip label="LinkedIn" url={profile.linkedinUrl} />}
+            {profile.githubUrl && <LinkChip label="GitHub" url={profile.githubUrl} />}
+            {profile.portfolioUrl && <LinkChip label="Portfolio" url={profile.portfolioUrl} />}
+          </div>
+        ) : (
+          <Link href="/profile" className="text-xs text-muted-foreground hover:underline">
+            Ajoute tes liens LinkedIn / GitHub / portfolio dans ton profil pour les avoir ici, prêts à copier.
+          </Link>
+        )}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-muted-foreground">Date de candidature</label>
