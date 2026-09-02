@@ -195,8 +195,27 @@ export async function getDiscoverSections() {
   return { recommended, newThisWeek, closingSoon, visaFriendly };
 }
 
-export async function getJobSources() {
-  return prisma.jobSource.findMany({ orderBy: { createdAt: "asc" } });
+// `config` holds API keys/tokens for some source types — never select it
+// here. This is the only read path the Settings > Sources UI (a client
+// component) uses, so excluding it here is what keeps a saved key from ever
+// reaching the browser.
+const jobSourceSafeSelect = {
+  id: true,
+  type: true,
+  name: true,
+  enabled: true,
+  status: true,
+  lastSyncedAt: true,
+  lastSyncError: true,
+  jobCount: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.JobSourceSelect;
+
+export type JobSourceSafe = Prisma.JobSourceGetPayload<{ select: typeof jobSourceSafeSelect }>;
+
+export async function getJobSources(): Promise<JobSourceSafe[]> {
+  return prisma.jobSource.findMany({ select: jobSourceSafeSelect, orderBy: { createdAt: "asc" } });
 }
 
 export async function getSavedSearches() {
