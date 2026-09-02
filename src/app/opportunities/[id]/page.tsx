@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getApplicationDetail } from "@/lib/data/applications";
 import { getProfile } from "@/lib/data/profile";
-import { prisma } from "@/lib/prisma";
+import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
 import { isAiConfigured } from "@/lib/ai/provider";
 import { safeJsonParse } from "@/lib/utils";
 import { OpportunityHeader } from "@/components/opportunities/opportunity-header";
@@ -15,7 +15,7 @@ export default async function OpportunityDetailPage({ params }: PageProps<"/oppo
   const [application, profile, stages, aiConfigured] = await Promise.all([
     getApplicationDetail(id),
     getProfile(),
-    prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" }, orderBy: { order: "asc" } }),
+    ensureApplicationPipelineStages(),
     isAiConfigured(),
   ]);
 

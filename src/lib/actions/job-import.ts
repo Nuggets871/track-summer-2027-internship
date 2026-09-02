@@ -9,6 +9,7 @@ import { isAiConfigured } from "@/lib/ai/provider";
 import { computeJobMatch, computeEligibility, type MatchResult, type EligibilityResult } from "@/lib/job-matching";
 import { getProfile } from "@/lib/data/profile";
 import { getSettings } from "@/lib/data/settings";
+import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
 const FETCH_TIMEOUT_MS = 12_000;
 
 export type DuplicateMatch = { id: string; title: string; companyName: string } | null;
@@ -264,9 +265,10 @@ export async function saveAnalyzedOpportunity(raw: SaveOpportunityInput) {
     cityId = city.id;
   }
 
-  const stages = await prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" } });
+  const stages = await ensureApplicationPipelineStages();
   const stageKey = data.action === "ALREADY_APPLIED" ? "APPLIED" : data.action === "PREPARE" ? "PREPARING" : "SAVED";
-  const stage = stages.find((s) => s.key === stageKey) ?? stages[0];
+  const stage = stages.find((s) => s.key === stageKey);
+  if (!stage) throw new Error(`Statut de candidature introuvable : ${stageKey}`);
 
   const application = await prisma.$transaction(async (tx) => {
     const created = await tx.application.create({
@@ -285,7 +287,7 @@ export async function saveAnalyzedOpportunity(raw: SaveOpportunityInput) {
         durationMonths: data.durationMonths,
         salaryAmount: data.salaryAmount,
         salaryCurrency: data.salaryCurrency,
-        statusId: stage?.id ?? "",
+        statusId: stage.id,
         nextAction: data.action === "ALREADY_APPLIED" ? (data.nextAction ?? null) : null,
         notes: data.notes,
       },

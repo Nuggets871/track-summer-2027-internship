@@ -1,5 +1,5 @@
 import { getOpportunities } from "@/lib/data/applications";
-import { prisma } from "@/lib/prisma";
+import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
 import { OpportunitiesTable } from "@/components/opportunities/opportunities-table";
 import { JobImportWidget } from "@/components/job-import/job-import-widget";
 
@@ -8,7 +8,7 @@ export const metadata = { title: "Opportunités" };
 export default async function OpportunitiesPage() {
   const [opportunities, stages] = await Promise.all([
     getOpportunities(),
-    prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" }, orderBy: { order: "asc" } }),
+    ensureApplicationPipelineStages(),
   ]);
 
   return (

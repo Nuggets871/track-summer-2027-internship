@@ -41,6 +41,22 @@ afterAll(async () => {
 });
 
 describe("core opportunity workflows", () => {
+  it("bootstraps every required application stage on a fresh database", async () => {
+    const { ensureApplicationPipelineStages } = await import("@/lib/data/pipeline-stages");
+
+    const stages = await ensureApplicationPipelineStages();
+
+    expect(stages.map((stage) => stage.key)).toEqual([
+      "SAVED",
+      "PREPARING",
+      "APPLIED",
+      "INTERVIEW",
+      "OFFER",
+      "REJECTED",
+      "ARCHIVED",
+    ]);
+  });
+
   it("creates an opportunity, updates it, and moves it through the pipeline", async () => {
     const { prisma } = await import("@/lib/prisma");
     const { updateApplication, updateApplicationStatus } = await import("@/lib/actions/applications");

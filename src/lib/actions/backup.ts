@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import Papa from "papaparse";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_PIPELINE_STAGES, LEGACY_STAGE_KEY_MAP } from "@/lib/constants";
+import { LEGACY_STAGE_KEY_MAP } from "@/lib/constants";
+import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
 
 const EXPORTABLE_MODELS = [
   "country",
@@ -113,24 +114,7 @@ export async function clearDemoData() {
 }
 
 export async function ensureDefaultPipelineStages() {
-  const existing = await prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" } });
-
-  if (existing.length === 0) {
-    await prisma.pipelineStage.createMany({
-      data: DEFAULT_PIPELINE_STAGES.map((s) => ({ ...s, isSystem: true, kind: "APPLICATION" })),
-    });
-    return;
-  }
-
-  // Create any of the 7 current stages that are missing (fresh installs
-  // always have all of them; this only matters for databases upgraded from
-  // an earlier version of the app).
-  const existingKeys = new Set(existing.map((s) => s.key));
-  const missing = DEFAULT_PIPELINE_STAGES.filter((s) => !existingKeys.has(s.key));
-  if (missing.length > 0) {
-    await prisma.pipelineStage.createMany({ data: missing.map((s) => ({ ...s, isSystem: true, kind: "APPLICATION" })) });
-  }
-
+  await ensureApplicationPipelineStages();
   await migrateLegacyPipelineStages();
 }
 
