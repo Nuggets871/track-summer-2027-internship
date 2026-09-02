@@ -652,3 +652,140 @@ model JobAnalysis {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// ---------------------------------------------------------------------------
+// Discover — real, modular job aggregation (Greenhouse/Lever public APIs,
+// RSS feeds, and manual CSV/JSON import). Every JobListing row traces back
+// to a real JobSource; nothing here is fabricated or simulated.
+// ---------------------------------------------------------------------------
+
+model JobSource {
+  id   String @id @default(cuid())
+  type String // GREENHOUSE | LEVER | RSS | JSON_ENDPOINT | CSV_URL | MANUAL_IMPORT
+  name String // display name, e.g. "GitLab (Greenhouse)" or "Personal RSS feed"
+
+  // JSON, shape depends on `type` — e.g. {"boardToken":"gitlab"} for
+  // GREENHOUSE, {"companyName":"palantir"} for LEVER, {"feedUrl":"..."} for
+  // RSS/JSON_ENDPOINT/CSV_URL. No API keys are needed for the providers
+  // shipped today (Greenhouse/Lever's job-board APIs are public); if a
+  // future source needs one, store it in Setting the same way as the
+  // DeepSeek key — never inline here in plain application code.
+  config String
+
+  enabled Boolean @default(true)
+
+  status        String    @default("UNKNOWN") // OK | ERROR | UNKNOWN
+  lastSyncedAt  DateTime?
+  lastSyncError String?
+  jobCount      Int       @default(0) // cached count of active listings from this source
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listings JobListing[]
+
+  @@index([type])
+}
+
+model JobListing {
+  id String @id @default(cuid())
+
+  sourceId    String
+  source      JobSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sourceJobId String // the id/slug from the source's own system
+  sourceUrl   String // canonical link back to the original posting
+
+  title       String
+  companyName String
+  description String? // plain-text, HTML stripped
+  rawText     String? // fuller text kept for extraction/search/matching, truncated
+
+  cityName     String?
+  countryName  String?
+  remoteType   String? // REMOTE | HYBRID | ONSITE
+  sector       String?
+  contractType String?
+  isInternship Boolean @default(false)
+
+  postedAt       DateTime?
+  expiresAt      DateTime?
+  startDate      DateTime?
+  durationMonths Int?
+
+  salaryAmount   Float?
+  salaryCurrency String?
+
+  requiredEducationLevel  String?
+  requiredExperienceYears Int?
+  requiredSkills          String? // JSON array of strings
+  requiredLanguages       String? // JSON array of strings
+  visaSponsorship         Boolean? // null = not mentioned/unknown
+  tags                    String? // JSON array of strings
+
+  status String @default("ACTIVE") // ACTIVE | EXPIRED | UNKNOWN — never deleted on disappearance, just marked
+
+  // Deduplication: a duplicate points at the primary listing it was merged
+  // into; the primary caches how many sources it was found on.
+  duplicateOfId     String?
+  duplicateOf       JobListing?  @relation("Duplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates        JobListing[] @relation("Duplicates")
+  foundSourcesCount Int          @default(1)
+
+  // Step 1 — local, deterministic pre-score. Reuses the exact same
+  // computeJobMatch/computeEligibility engine as Opportunities (never an
+  // AI call), computed at ingest and recomputed whenever the profile
+  // changes — this is what makes scoring thousands of listings cheap.
+  matchScore                     Int?
+  matchBreakdown                 String? // JSON array of ScoreFactor
+  strengths                      String? // JSON array of strings
+  watchouts                      String? // JSON array of strings
+  missingSkills                  String? // JSON array of strings
+  recommendation                 String?
+  eligibilityStatus              String?
+  eligibilityNotes               String? // JSON array of strings
+  scoreProfileUpdatedAtSnapshot  DateTime?
+
+  // Step 2 — on-demand AI-enhanced extraction, only run for listings the
+  // user actually opens/analyzes (reuses extractJobPostingWithAI).
+  aiEnhanced   Boolean   @default(false)
+  aiAnalyzedAt DateTime?
+
+  // Set once "Save" turns this into a tracked Opportunity, so re-syncing
+  // never creates a second one for the same listing.
+  linkedApplicationId String? @unique
+
+  discoveredAt DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([sourceId, sourceJobId])
+  @@index([status])
+  @@index([isInternship])
+  @@index([countryName])
+  @@index([cityName])
+  @@index([postedAt])
+  @@index([matchScore])
+  @@index([duplicateOfId])
+  @@index([companyName])
+}
+
+model SavedSearch {
+  id      String  @id @default(cuid())
+  name    String
+  query   String? // free-text keywords
+  filters String // JSON: {countries, cities, industries, remoteType, minMatch, visaFriendly, sourceIds, deadlineWithinDays, ...}
+  sort    String  @default("match")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model JobWatch {
+  id          String  @id @default(cuid())
+  keyword     String?
+  countryName String?
+  cityName    String?
+  sector      String?
+
+  lastNotifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+}
