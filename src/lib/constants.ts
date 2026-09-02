@@ -243,3 +243,121 @@ export function colorFor<T extends { value: string; color?: string }>(
 ): string {
   return options.find((o) => o.value === value)?.color ?? fallback;
 }
+
+// ---------------------------------------------------------------------------
+// Job import — extraction, matching & eligibility ("Add by link" workflow)
+// ---------------------------------------------------------------------------
+
+// Ordered so index = rank, used to compare "does the candidate meet the bar".
+export const EDUCATION_LEVELS = [
+  { value: "HIGH_SCHOOL", label: "Lycée / Bac" },
+  { value: "ASSOCIATE", label: "Bac+2 (BTS/DUT)" },
+  { value: "BACHELOR", label: "Licence / Bachelor (Bac+3)" },
+  { value: "MASTER", label: "Master / MBA (Bac+5)" },
+  { value: "PHD", label: "Doctorat / PhD" },
+] as const;
+
+export const LANGUAGE_LEVELS = [
+  { value: "BASIC", label: "Basique" },
+  { value: "INTERMEDIATE", label: "Intermédiaire" },
+  { value: "ADVANCED", label: "Avancé" },
+  { value: "FLUENT", label: "Courant" },
+  { value: "NATIVE", label: "Natif" },
+] as const;
+
+export const COMMON_LANGUAGES = [
+  "Anglais",
+  "Français",
+  "Allemand",
+  "Espagnol",
+  "Italien",
+  "Mandarin",
+  "Cantonais",
+  "Arabe",
+  "Portugais",
+  "Néerlandais",
+  "Japonais",
+  "Coréen",
+  "Russe",
+] as const;
+
+// Curated, extensible keyword list scanned in job descriptions to build
+// requiredSkills — genuinely detected (word-boundary match), never guessed.
+export const MASTER_SKILLS = [
+  "Excel",
+  "PowerPoint",
+  "Word",
+  "VBA",
+  "Python",
+  "SQL",
+  "R",
+  "Java",
+  "JavaScript",
+  "TypeScript",
+  "React",
+  "Bloomberg",
+  "Capital IQ",
+  "Financial Modeling",
+  "Modélisation financière",
+  "Valorisation",
+  "DCF",
+  "LBO",
+  "Comptabilité",
+  "Audit",
+  "IFRS",
+  "Power BI",
+  "Tableau",
+  "Machine Learning",
+  "Data Analysis",
+  "Analyse de données",
+  "PowerPoint",
+  "Négociation",
+  "Gestion de projet",
+  "Salesforce",
+  "SAP",
+  "AutoCAD",
+  "Photoshop",
+  "SEO",
+  "Google Analytics",
+  "C++",
+  "C#",
+  "AWS",
+  "Docker",
+  "Git",
+] as const;
+
+export const EXTRACTION_METHODS = [
+  { value: "STRUCTURED_DATA", label: "Données structurées de la page" },
+  { value: "AI_ENHANCED", label: "Analyse IA + données structurées" },
+  { value: "HEURISTIC", label: "Analyse du texte de la page" },
+  { value: "MANUAL_PASTE", label: "Texte collé manuellement" },
+] as const;
+
+export const ELIGIBILITY_STATUSES = [
+  { value: "LIKELY_ELIGIBLE", label: "Probablement éligible", color: "#22c55e" },
+  { value: "POSSIBLY_NOT_ELIGIBLE", label: "Possiblement non éligible", color: "#f87171" },
+  { value: "UNCLEAR", label: "Incertain", color: "#94a3b8" },
+] as const;
+
+export const JOB_IMPORT_ACTIONS = [
+  { value: "SAVE_LATER", label: "Sauvegarder pour plus tard" },
+  { value: "ALREADY_APPLIED", label: "J'ai déjà candidaté" },
+  { value: "PREPARE", label: "Préparer ma candidature" },
+] as const;
+
+export const DEFAULT_MATCH_WEIGHTS = {
+  skills: 30,
+  experience: 25,
+  education: 15,
+  languages: 10,
+  location: 10,
+  preferences: 10,
+};
+
+export function matchLabel(score: number): string {
+  if (score >= 85) return "Excellent match";
+  if (score >= 70) return "Très bon match";
+  if (score >= 55) return "Bon match";
+  if (score >= 40) return "Match moyen";
+  return "Match faible";
+}

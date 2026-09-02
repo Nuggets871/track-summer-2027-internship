@@ -13,6 +13,7 @@ export type FilterableApplication = {
   deadline: Date | null;
   company: { name: string };
   priorityScore: { total: number };
+  jobAnalysis?: { matchScore: number | null } | null;
 };
 
 export type ApplicationFilters = {
@@ -20,6 +21,9 @@ export type ApplicationFilters = {
   statusIds?: string[];
   countryIds?: string[];
   priorities?: string[];
+  minMatch?: number;
+  needsAnalysis?: boolean;
+  deadlineWithinDays?: number;
 };
 
 export function filterApplications<T extends FilterableApplication>(
@@ -41,11 +45,22 @@ export function filterApplications<T extends FilterableApplication>(
   if (filters.priorities?.length) {
     rows = rows.filter((a) => filters.priorities!.includes(a.priority));
   }
+  if (filters.minMatch !== undefined) {
+    rows = rows.filter((a) => (a.jobAnalysis?.matchScore ?? -1) >= filters.minMatch!);
+  }
+  if (filters.needsAnalysis) {
+    rows = rows.filter((a) => !a.jobAnalysis);
+  }
+  if (filters.deadlineWithinDays !== undefined) {
+    const now = Date.now();
+    const horizon = now + filters.deadlineWithinDays * 24 * 60 * 60 * 1000;
+    rows = rows.filter((a) => a.deadline && a.deadline.getTime() >= now && a.deadline.getTime() <= horizon);
+  }
 
   return rows;
 }
 
-export type ApplicationSortKey = "updatedAt" | "deadline" | "score" | "company";
+export type ApplicationSortKey = "updatedAt" | "deadline" | "score" | "company" | "match";
 
 export function sortApplications<T extends FilterableApplication>(applications: T[], sort: ApplicationSortKey): T[] {
   return [...applications].sort((a, b) => {
@@ -56,6 +71,7 @@ export function sortApplications<T extends FilterableApplication>(applications: 
       return a.deadline.getTime() - b.deadline.getTime();
     }
     if (sort === "score") return b.priorityScore.total - a.priorityScore.total;
+    if (sort === "match") return (b.jobAnalysis?.matchScore ?? -1) - (a.jobAnalysis?.matchScore ?? -1);
     if (sort === "company") return a.company.name.localeCompare(b.company.name);
     return b.updatedAt.getTime() - a.updatedAt.getTime();
   });
