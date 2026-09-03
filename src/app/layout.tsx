@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -24,6 +25,10 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Every screen reads from the runtime SQLite volume. Waiting for an actual
+  // request prevents `next build` from freezing empty build-database results
+  // into static pages that would hide persisted production data after deploy.
+  await connection();
   const searchIndex = await getSearchIndex();
 
   return (
