@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles, Link2, Check } from "lucide-react";
+import { FileText, Sparkles, Link2, Check, ChevronDown } from "lucide-react";
 import { updateApplication } from "@/lib/actions/applications";
 import { generateCoverLetterForApplication, refineCoverLetter, saveCoverLetterContent } from "@/lib/actions/ai-actions";
 import type { AppProfile } from "@/lib/data/profile";
@@ -33,6 +33,10 @@ const REFINE_ACTIONS = [
 
 function toDateInput(d: Date | null) {
   return d ? new Date(d).toISOString().slice(0, 10) : "";
+}
+
+function todayInput() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 type LinkColor = "linkedin" | "github" | "portfolio";
@@ -83,10 +87,17 @@ function LinkChip({ label, url, color }: { label: string; url: string; color: Li
 export function OpportunityApplication({ application, profile }: { application: ApplicationDetail; profile: AppProfile }) {
   const [pending, startTransition] = useTransition();
   const [letterPending, startLetterTransition] = useTransition();
-  const [appliedAt, setAppliedAt] = useState(toDateInput(application.appliedAt));
+  // Défaut sur aujourd'hui : on ouvre cette étape juste avant/pendant l'envoi
+  // de la candidature, donc la date la plus probable est le jour même — pas
+  // besoin d'ouvrir le sélecteur pour la resaisir à chaque fois. Une date déjà
+  // enregistrée reste bien sûr prioritaire.
+  const [appliedAt, setAppliedAt] = useState(() => toDateInput(application.appliedAt) || todayInput());
   const [nextAction, setNextAction] = useState(application.nextAction ?? "");
   const [nextActionDate, setNextActionDate] = useState(toDateInput(application.nextActionDate));
   const [notes, setNotes] = useState(application.notes ?? "");
+  // Les champs secondaires restent repliés par défaut pour ne montrer que
+  // l'essentiel — sauf s'il y a déjà des données dedans, pour ne rien cacher.
+  const [detailsOpen, setDetailsOpen] = useState(Boolean(application.nextAction || application.nextActionDate || application.notes));
   const [tone, setTone] = useState<(typeof TONES)[number]["value"]>((application.coverLetter?.tone as never) ?? "PROFESSIONAL");
   const [language, setLanguage] = useState<"FR" | "EN">((application.coverLetter?.language as "FR" | "EN") ?? "FR");
   const [letterContent, setLetterContent] = useState(application.coverLetter?.content ?? "");
@@ -150,35 +161,49 @@ export function OpportunityApplication({ application, profile }: { application: 
           </Link>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5 sm:w-56">
             <label className="text-xs font-medium text-muted-foreground">Date de candidature</label>
             <Input type="date" value={appliedAt} onChange={(e) => setAppliedAt(e.target.value)} />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">CV utilisé</label>
-            {profile.cvRawText ? (
-              <Link href="/profile" className="flex items-center gap-1.5 text-sm text-primary hover:underline">
-                <FileText className="size-3.5" /> CV du profil
-              </Link>
-            ) : (
-              <Link href="/profile" className="text-sm text-muted-foreground hover:underline">
-                Aucun CV — en ajouter un dans ton profil
-              </Link>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Prochaine action</label>
-            <Input value={nextAction} onChange={(e) => setNextAction(e.target.value)} placeholder="Relancer, préparer l'entretien..." />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Date de l&apos;action</label>
-            <Input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} />
-          </div>
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">Notes</label>
-            <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes personnelles sur cette candidature..." />
-          </div>
+
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((o) => !o)}
+            className="flex w-fit items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ChevronDown className={cn("size-3.5 transition-transform duration-200", detailsOpen && "rotate-180")} />
+            {detailsOpen ? "Masquer les détails" : "Plus de détails (CV, relance, notes...)"}
+          </button>
+
+          {detailsOpen && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">CV utilisé</label>
+                {profile.cvRawText ? (
+                  <Link href="/profile" className="flex items-center gap-1.5 text-sm text-primary hover:underline">
+                    <FileText className="size-3.5" /> CV du profil
+                  </Link>
+                ) : (
+                  <Link href="/profile" className="text-sm text-muted-foreground hover:underline">
+                    Aucun CV — en ajouter un dans ton profil
+                  </Link>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Prochaine action</label>
+                <Input value={nextAction} onChange={(e) => setNextAction(e.target.value)} placeholder="Relancer, préparer l'entretien..." />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Date de l&apos;action</label>
+                <Input type="date" value={nextActionDate} onChange={(e) => setNextActionDate(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">Notes</label>
+                <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes personnelles sur cette candidature..." />
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex justify-end">
           <Button onClick={saveTracking} disabled={pending}>
