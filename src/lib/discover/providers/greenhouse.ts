@@ -6,6 +6,7 @@
 // doesn't exist publicly. "Adding this source" means tracking one company.
 
 import type { JobSourceProvider, RawSourceJob, SourceHealthCheck } from "@/lib/discover/types";
+import { parseDateSafe } from "@/lib/discover/dates";
 
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -57,7 +58,7 @@ export const greenhouseProvider: JobSourceProvider = {
       departmentOrTeam: j.departments?.[0]?.name ?? null,
       locationText: j.location?.name ?? null,
       remoteType: /remote/i.test(j.location?.name ?? "") ? "REMOTE" : null,
-      postedAt: j.updated_at ? new Date(j.updated_at) : null,
+      postedAt: parseDateSafe(j.updated_at),
       contractType: null,
     }));
 

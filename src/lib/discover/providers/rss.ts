@@ -6,6 +6,7 @@
 
 import Parser from "rss-parser";
 import type { JobSourceProvider, RawSourceJob, SourceHealthCheck } from "@/lib/discover/types";
+import { parseDateSafe } from "@/lib/discover/dates";
 
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -55,7 +56,7 @@ export const rssProvider: JobSourceProvider = {
           departmentOrTeam: (item.categories ?? []).join(", ") || null,
           locationText: null,
           remoteType: null,
-          postedAt: item.isoDate ? new Date(item.isoDate) : item.pubDate ? new Date(item.pubDate) : null,
+          postedAt: parseDateSafe(item.isoDate) ?? parseDateSafe(item.pubDate),
           contractType: null,
         }),
       );

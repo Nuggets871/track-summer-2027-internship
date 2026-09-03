@@ -5,6 +5,7 @@
 // same constraint as Greenhouse: there is no global cross-company search.
 
 import type { JobSourceProvider, RawSourceJob, SourceHealthCheck } from "@/lib/discover/types";
+import { parseDateSafe } from "@/lib/discover/dates";
 
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -74,7 +75,7 @@ export const leverProvider: JobSourceProvider = {
         departmentOrTeam: p.categories?.team ?? p.categories?.department ?? null,
         locationText: p.categories?.location ?? null,
         remoteType: remoteTypeFromWorkplace(p.workplaceType),
-        postedAt: p.createdAt ? new Date(p.createdAt) : null,
+        postedAt: parseDateSafe(p.createdAt),
         contractType: p.categories?.commitment ?? null,
       }),
     );

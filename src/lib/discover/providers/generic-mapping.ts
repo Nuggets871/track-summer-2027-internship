@@ -5,6 +5,7 @@
 // without ever inventing a value for a column that isn't there.
 
 import type { RawSourceJob } from "@/lib/discover/types";
+import { parseDateSafe } from "@/lib/discover/dates";
 
 function firstValue(record: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
@@ -36,9 +37,6 @@ export function mapGenericRecordToRawJob(record: Record<string, unknown>, rowInd
   const url = firstValue(record, KEY_ALIASES.url);
   if (!title || !url) return null;
 
-  const postedAtRaw = firstValue(record, KEY_ALIASES.postedAt);
-  const postedAt = postedAtRaw ? new Date(postedAtRaw) : null;
-
   return {
     sourceJobId: url || `row-${rowIndex}`,
     sourceUrl: url,
@@ -48,7 +46,7 @@ export function mapGenericRecordToRawJob(record: Record<string, unknown>, rowInd
     departmentOrTeam: null,
     locationText: firstValue(record, KEY_ALIASES.location),
     remoteType: null,
-    postedAt: postedAt && !Number.isNaN(postedAt.getTime()) ? postedAt : null,
+    postedAt: parseDateSafe(firstValue(record, KEY_ALIASES.postedAt)),
     contractType: firstValue(record, KEY_ALIASES.contractType),
   };
 }

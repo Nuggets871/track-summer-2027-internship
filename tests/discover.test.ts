@@ -3,6 +3,7 @@ import { looksLikeInternship, guessSector, splitLocation } from "@/lib/discover/
 import { canonicalizeUrl, normalizeForDedup } from "@/lib/discover/dedup";
 import { mapGenericRecordToRawJob } from "@/lib/discover/providers/generic-mapping";
 import { buildMatchQuery } from "@/lib/discover/search-index";
+import { parseDateSafe } from "@/lib/discover/dates";
 
 describe("looksLikeInternship", () => {
   it("recognizes common internship titles across languages", () => {
@@ -111,5 +112,25 @@ describe("buildMatchQuery", () => {
 
   it("strips quotes from terms so they can't break the MATCH syntax", () => {
     expect(buildMatchQuery('finance" OR 1=1')).toBe('"finance"* "OR"* "1=1"*');
+  });
+});
+
+describe("parseDateSafe", () => {
+  it("parses a valid ISO date", () => {
+    expect(parseDateSafe("2026-06-01T00:00:00Z")).toEqual(new Date("2026-06-01T00:00:00Z"));
+  });
+
+  it("parses a numeric epoch timestamp (e.g. Lever's createdAt)", () => {
+    expect(parseDateSafe(1717200000000)).toEqual(new Date(1717200000000));
+  });
+
+  it("returns null instead of an Invalid Date for garbage input", () => {
+    // Regression: an unparsable postedAt from a real source (seen live with
+    // JSearch) used to flow through as `new Date(garbage)` — an Invalid
+    // Date that Prisma then rejects when writing it, crashing the sync.
+    expect(parseDateSafe("not a date")).toBeNull();
+    expect(parseDateSafe("")).toBeNull();
+    expect(parseDateSafe(null)).toBeNull();
+    expect(parseDateSafe(undefined)).toBeNull();
   });
 });

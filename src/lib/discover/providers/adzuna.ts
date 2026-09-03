@@ -5,6 +5,7 @@
 // (no single endpoint searches every country at once).
 
 import type { JobSourceProvider, RawSourceJob, SourceHealthCheck } from "@/lib/discover/types";
+import { parseDateSafe } from "@/lib/discover/dates";
 
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -78,7 +79,7 @@ export const adzunaProvider: JobSourceProvider = {
           departmentOrTeam: j.category?.label ?? null,
           locationText: j.location?.display_name ?? null,
           remoteType: null,
-          postedAt: j.created ? new Date(j.created) : null,
+          postedAt: parseDateSafe(j.created),
           contractType: j.contract_type ?? j.contract_time ?? null,
         });
       }

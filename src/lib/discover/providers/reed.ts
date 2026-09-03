@@ -3,6 +3,7 @@
 // the API key as the username and an empty password, per Reed's own docs.
 
 import type { JobSourceProvider, RawSourceJob, SourceHealthCheck } from "@/lib/discover/types";
+import { parseDateSafe } from "@/lib/discover/dates";
 
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -65,7 +66,7 @@ export const reedProvider: JobSourceProvider = {
         departmentOrTeam: null,
         locationText: j.locationName ?? null,
         remoteType: null,
-        postedAt: j.date ? new Date(j.date) : null,
+        postedAt: parseDateSafe(j.date),
         contractType: j.contractType ?? null,
       }),
     );

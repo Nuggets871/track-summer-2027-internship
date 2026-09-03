@@ -5,6 +5,7 @@
 // same gap.
 
 import type { JobSourceProvider, RawSourceJob, SourceHealthCheck } from "@/lib/discover/types";
+import { parseDateSafe } from "@/lib/discover/dates";
 
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -66,7 +67,7 @@ export const joobleProvider: JobSourceProvider = {
           departmentOrTeam: null,
           locationText: j.location ?? null,
           remoteType: null,
-          postedAt: j.updated ? new Date(j.updated) : null,
+          postedAt: parseDateSafe(j.updated),
           contractType: j.type ?? null,
         }),
       );

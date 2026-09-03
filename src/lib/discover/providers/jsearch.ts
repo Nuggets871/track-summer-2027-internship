@@ -6,6 +6,7 @@
 // (see README > Sources de données > JSearch for signup steps).
 
 import type { JobSourceProvider, RawSourceJob, SourceHealthCheck } from "@/lib/discover/types";
+import { parseDateSafe } from "@/lib/discover/dates";
 
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -71,7 +72,7 @@ export const jsearchProvider: JobSourceProvider = {
         departmentOrTeam: null,
         locationText: [j.job_city, j.job_country].filter(Boolean).join(", ") || null,
         remoteType: j.job_is_remote ? "REMOTE" : null,
-        postedAt: j.job_posted_at_datetime_utc ? new Date(j.job_posted_at_datetime_utc) : null,
+        postedAt: parseDateSafe(j.job_posted_at_datetime_utc),
         contractType: j.job_employment_type ?? null,
       }),
     );

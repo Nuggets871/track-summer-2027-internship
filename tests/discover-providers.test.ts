@@ -111,6 +111,18 @@ describe("jsearchProvider", () => {
   it("throws when the API key is missing", async () => {
     await expect(jsearchProvider.searchJobs({})).rejects.toThrow(/RapidAPI/);
   });
+
+  it("doesn't crash and stores a null postedAt when the date is unparsable", async () => {
+    // Regression: live with a real JSearch source, an unparsable
+    // job_posted_at_datetime_utc used to become `new Date(garbage)` — an
+    // Invalid Date — which Prisma then rejected outright when the sync
+    // tried to write the listing, surfacing to the user as a Server
+    // Components render error (Next.js's minified error #441).
+    const malformed = { data: [{ ...sample.data[0], job_posted_at_datetime_utc: "not-a-real-date" }] };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(malformed)));
+    const jobs = await jsearchProvider.searchJobs({ apiKey: "key", query: "software intern" });
+    expect(jobs[0].postedAt).toBeNull();
+  });
 });
 
 describe("reedProvider", () => {
