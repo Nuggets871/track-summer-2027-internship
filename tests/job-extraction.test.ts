@@ -95,6 +95,26 @@ describe("normalizeLanguageName", () => {
   });
 });
 
+describe("extractJobPostingFromHtml — boilerplate stripping", () => {
+  it("drops recurring page chrome (cookies, nav, footer) rather than letting it crowd out the real posting", () => {
+    const html = `<html><head><title>Marketing Intern - Acme Corp</title></head>
+      <body>
+        <nav><div>Accueil</div><div>Carrières</div><div>Contact</div><div>Se connecter</div></nav>
+        <div>Accepter tous les cookies</div>
+        <h1>Marketing Intern</h1>
+        <p>Missions : support the marketing team on campaigns. Requirements: Excel and SQL.</p>
+        <div>Partager sur LinkedIn</div>
+        <footer><div>© 2026 Acme Corp — Tous droits réservés</div></footer>
+      </body></html>`;
+    const result = extractJobPostingFromHtml(html);
+    expect(result.rawText).toContain("Marketing Intern");
+    expect(result.rawText).toContain("support the marketing team");
+    expect(result.rawText.toLowerCase()).not.toContain("accepter tous les cookies");
+    expect(result.rawText.toLowerCase()).not.toContain("se connecter");
+    expect(result.rawText.toLowerCase()).not.toContain("tous droits réservés");
+  });
+});
+
 describe("extractJobPostingFromText — manual paste fallback", () => {
   it("tags the extraction method as MANUAL_PASTE and still runs heuristics", () => {
     const text = "Stage Marketing chez une startup. Télétravail complet. Anglais courant requis.";

@@ -61,7 +61,37 @@ const EMPTY: Omit<ExtractedJobData, "extractionMethod" | "rawText"> = {
   contractType: null,
 };
 
-const MAX_RAW_TEXT = 8000;
+const MAX_RAW_TEXT = 12_000;
+
+// Job pages routinely bury the actual posting under recurring UI chrome —
+// cookie banners, nav menus, footers, share/login buttons — which eats into
+// the (bounded) text budget sent downstream without ever containing real job
+// info. Dropping obviously-boilerplate lines before truncating lets more of
+// the real posting survive into that budget, both for the heuristics above
+// and for the AI extraction pass that reuses this same rawText.
+const BOILERPLATE_LINE_PATTERNS: RegExp[] = [
+  /^(accept|refuse|reject|manage)\s+(all\s+)?cookies?/i,
+  /^(accepter|refuser|g[ée]rer)\s+(tous\s+les\s+)?cookies?/i,
+  /^(politique de confidentialit[ée]|privacy policy|terms of (service|use)|conditions d'utilisation)$/i,
+  /^(se connecter|log ?in|sign ?in|s'inscrire|sign ?up|cr[ée]er un compte)$/i,
+  /^(accueil|home|[àa] propos|about( us)?|contact|carri[èe]res?|careers?|blog)$/i,
+  /^(partager|share)(\s*(on|sur)?\s*(linkedin|facebook|twitter|x)?)?$/i,
+  /^©\s*\d{4}/,
+  /^all rights reserved/i,
+  /^tous droits r[ée]serv[ée]s/i,
+  /^(offres? similaires?|similar jobs?|related jobs?|recommended for you)$/i,
+];
+
+function stripBoilerplateLines(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return true; // keep blank lines, they preserve paragraph breaks
+      return !BOILERPLATE_LINE_PATTERNS.some((pattern) => pattern.test(trimmed));
+    })
+    .join("\n");
+}
 
 // --- HTML utilities --------------------------------------------------------
 
@@ -333,7 +363,7 @@ function extractHeuristics(text: string, titleHint: string | null): Partial<Extr
 }
 
 export function extractJobPostingFromHtml(html: string): ExtractedJobData {
-  const text = htmlToText(html).slice(0, MAX_RAW_TEXT);
+  const text = stripBoilerplateLines(htmlToText(html)).slice(0, MAX_RAW_TEXT);
   const titleHint = extractTitleTag(html);
 
   const structured = extractStructuredData(html);
