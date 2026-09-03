@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
 
 const emptyToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 
@@ -101,6 +102,28 @@ export async function updateApplication(id: string, raw: ApplicationUpdateInput)
 
 export async function updateApplicationStatus(id: string, statusId: string) {
   await prisma.application.update({ where: { id }, data: { statusId } });
+  revalidateApplicationPaths(id);
+}
+
+/**
+ * One-click shortcut from "En préparation" to "Envoyée" — the single most
+ * common transition once the cover letter/tracking info is ready. Also sets
+ * appliedAt to today if it isn't already recorded, same convention as the
+ * "already applied" import flow (never overwrites a date the user already
+ * set on purpose, e.g. from the tracking form above).
+ */
+export async function markApplicationAsSent(id: string) {
+  const [stages, current] = await Promise.all([
+    ensureApplicationPipelineStages(),
+    prisma.application.findUniqueOrThrow({ where: { id }, select: { appliedAt: true } }),
+  ]);
+  const appliedStage = stages.find((s) => s.key === "APPLIED");
+  if (!appliedStage) throw new Error('Statut "Envoyée" introuvable.');
+
+  await prisma.application.update({
+    where: { id },
+    data: { statusId: appliedStage.id, appliedAt: current.appliedAt ?? new Date() },
+  });
   revalidateApplicationPaths(id);
 }
 

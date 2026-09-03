@@ -9,6 +9,7 @@ import { OpportunityOverview } from "@/components/opportunities/opportunity-over
 import { OpportunityFit } from "@/components/opportunities/opportunity-fit";
 import { OpportunityApplication } from "@/components/opportunities/opportunity-application";
 import { OpportunityAiActions } from "@/components/opportunities/opportunity-ai-actions";
+import { OpportunityStatusShortcut } from "@/components/opportunities/opportunity-status-shortcut";
 
 export default async function OpportunityDetailPage({ params }: PageProps<"/opportunities/[id]">) {
   const { id } = await params;
@@ -48,6 +49,7 @@ export default async function OpportunityDetailPage({ params }: PageProps<"/oppo
       <OpportunityFit application={application} jobAnalysis={jobAnalysis} profileStale={profileStale} />
       <OpportunityApplication application={application} profile={profile} />
       <OpportunityAiActions applicationId={application.id} aiConfigured={aiConfigured} interviewPrepNotes={application.interviewPrepNotes} hasCv={!!profile.cvRawText} />
+      <OpportunityStatusShortcut applicationId={application.id} statusKey={application.status.key} />
     </div>
   );
 }
