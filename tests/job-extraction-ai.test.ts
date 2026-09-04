@@ -28,3 +28,27 @@ describe("extractJobPostingWithAI — date precision", () => {
     expect(result?.deadline).toBeNull();
   });
 });
+
+describe("extractJobPostingWithAI — grounded requirements", () => {
+  it("rejects company longevity even when the model puts it in requiredExperienceYears", async () => {
+    const source = "Our company has 22 years of experience building software.";
+    vi.mocked(aiChat).mockResolvedValue(JSON.stringify({
+      requiredExperienceYears: 22,
+      evidence: { requiredExperienceYears: source, requiredSkills: {} },
+    }));
+    const result = await extractJobPostingWithAI(source);
+    expect(result?.requiredExperienceYears).toBeNull();
+  });
+
+  it("keeps candidate requirements and canonicalizes grounded skill aliases", async () => {
+    const source = "You must have at least 2 years of experience and strong NodeJS skills.";
+    vi.mocked(aiChat).mockResolvedValue(JSON.stringify({
+      requiredExperienceYears: 2,
+      requiredSkills: ["NodeJS"],
+      evidence: { requiredExperienceYears: source, requiredSkills: { NodeJS: "strong NodeJS skills" } },
+    }));
+    const result = await extractJobPostingWithAI(source);
+    expect(result?.requiredExperienceYears).toBe(2);
+    expect(result?.requiredSkills).toEqual(["Node.js"]);
+  });
+});

@@ -51,6 +51,18 @@ describe("computeJobMatch", () => {
     expect(strong.total).toBeGreaterThan(weak.total);
   });
 
+  it("matches safe aliases without confusing unrelated languages", () => {
+    const result = computeJobMatch(
+      makeProfile({ skills: ["Node.js", "PostgreSQL", "Java"] }),
+      makeJob({ requiredSkills: ["NodeJS", "Postgres", "JavaScript"] }),
+      DEFAULT_MATCH_WEIGHTS,
+      { preferredCountries: [], preferredSectors: [] },
+    );
+    expect(result.missingSkills).toEqual(["JavaScript"]);
+    expect(result.strengths.join(" ")).toContain("NodeJS");
+    expect(result.strengths.join(" ")).toContain("Postgres");
+  });
+
   it("lists missing skills and does not list skills the candidate already has", () => {
     const result = computeJobMatch(makeProfile(), makeJob({ requiredSkills: ["Excel", "SQL", "Bloomberg"] }), DEFAULT_MATCH_WEIGHTS, context);
     expect(result.missingSkills).toEqual(expect.arrayContaining(["SQL", "Bloomberg"]));

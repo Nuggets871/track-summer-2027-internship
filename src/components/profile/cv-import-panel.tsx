@@ -38,6 +38,9 @@ export function CvImportPanel({ profile }: { profile: AppProfile }) {
           lastName: !!result.detected.lastName,
           email: !!result.detected.email,
           phone: !!result.detected.phone,
+          location: !!result.detected.location,
+          headline: !!result.detected.headline,
+          summary: !!result.detected.summary,
           educationLevel: !!result.detected.educationLevel,
           fieldOfStudy: !!result.detected.fieldOfStudy,
           graduationYear: !!result.detected.graduationYear,
@@ -45,6 +48,8 @@ export function CvImportPanel({ profile }: { profile: AppProfile }) {
           skills: result.detected.skills.length > 0,
           languages: result.detected.languages.length > 0,
           experiences: result.detected.experiences.length > 0,
+          educationHistory: result.detected.educationHistory.length > 0,
+          projects: result.detected.projects.length > 0,
         });
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Impossible de lire ce fichier");
@@ -63,6 +68,9 @@ export function CvImportPanel({ profile }: { profile: AppProfile }) {
         lastName: include.lastName ? d?.lastName ?? null : null,
         email: include.email ? d?.email ?? null : null,
         phone: include.phone ? d?.phone ?? null : null,
+        location: include.location ? d?.location ?? null : null,
+        headline: include.headline ? d?.headline ?? null : null,
+        summary: include.summary ? d?.summary ?? null : null,
         educationLevel: include.educationLevel ? d?.educationLevel ?? null : null,
         fieldOfStudy: include.fieldOfStudy ? d?.fieldOfStudy ?? null : null,
         graduationYear: include.graduationYear ? d?.graduationYear ?? null : null,
@@ -70,6 +78,8 @@ export function CvImportPanel({ profile }: { profile: AppProfile }) {
         skills: include.skills ? d?.skills ?? [] : [],
         languages: include.languages ? d?.languages ?? [] : [],
         experiences: include.experiences ? d?.experiences ?? [] : [],
+        educationHistory: include.educationHistory ? d?.educationHistory ?? [] : [],
+        projects: include.projects ? d?.projects ?? [] : [],
       });
       toast.success("Profil mis à jour à partir du CV");
       setPreview(null);
@@ -141,6 +151,27 @@ export function CvImportPanel({ profile }: { profile: AppProfile }) {
                   disabled={!preview.detected.phone}
                 />
                 <FieldRow
+                  label="Localisation"
+                  value={preview.detected.location ?? "Non renseignée"}
+                  checked={!!include.location}
+                  onCheckedChange={(v) => setInclude((p) => ({ ...p, location: v }))}
+                  disabled={!preview.detected.location}
+                />
+                <FieldRow
+                  label="Titre professionnel"
+                  value={preview.detected.headline ?? "Non renseigné"}
+                  checked={!!include.headline}
+                  onCheckedChange={(v) => setInclude((p) => ({ ...p, headline: v }))}
+                  disabled={!preview.detected.headline}
+                />
+                <FieldRow
+                  label="Présentation"
+                  value={preview.detected.summary ?? "Non renseignée"}
+                  checked={!!include.summary}
+                  onCheckedChange={(v) => setInclude((p) => ({ ...p, summary: v }))}
+                  disabled={!preview.detected.summary}
+                />
+                <FieldRow
                   label="Formation"
                   value={
                     preview.detected.educationLevel
@@ -185,6 +216,20 @@ export function CvImportPanel({ profile }: { profile: AppProfile }) {
                   checked={!!include.experiences}
                   onCheckedChange={(v) => setInclude((p) => ({ ...p, experiences: v }))}
                   disabled={preview.detected.experiences.length === 0}
+                />
+                <FieldRow
+                  label={`Formations détaillées (${preview.detected.educationHistory.length})`}
+                  value={preview.detected.educationHistory.map((e) => `${e.degree} — ${e.institution}`).join(", ") || "Non renseigné"}
+                  checked={!!include.educationHistory}
+                  onCheckedChange={(v) => setInclude((p) => ({ ...p, educationHistory: v }))}
+                  disabled={preview.detected.educationHistory.length === 0}
+                />
+                <FieldRow
+                  label={`Projets (${preview.detected.projects.length})`}
+                  value={preview.detected.projects.map((p) => p.name).join(", ") || "Non renseigné"}
+                  checked={!!include.projects}
+                  onCheckedChange={(v) => setInclude((p) => ({ ...p, projects: v }))}
+                  disabled={preview.detected.projects.length === 0}
                 />
               </>
             )}

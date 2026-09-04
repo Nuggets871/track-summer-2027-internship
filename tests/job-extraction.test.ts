@@ -132,4 +132,19 @@ describe("extractJobPostingFromText — manual paste fallback", () => {
     expect(result.requiredEducationLevel).toBeNull();
     expect(result.companyName).toBeNull();
   });
+
+  it("never mistakes company longevity for a candidate experience requirement", () => {
+    const result = extractJobPostingFromText(
+      "About us: our company has 22 years of experience serving customers. We are hiring a software engineering intern.",
+    );
+    expect(result.requiredExperienceYears).toBeNull();
+  });
+
+  it("still detects an explicit candidate experience requirement", () => {
+    const result = extractJobPostingFromText(
+      "Qualifications: candidates must have at least 2 years of professional experience with NodeJS and Postgres.",
+    );
+    expect(result.requiredExperienceYears).toBe(2);
+    expect(result.requiredSkills).toEqual(expect.arrayContaining(["Node.js", "PostgreSQL"]));
+  });
 });

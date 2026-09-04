@@ -10,11 +10,12 @@ import { askAssistant } from "@/lib/ai/prompts/assistant";
 import { isAiConfigured } from "@/lib/ai/provider";
 import { safeJsonParse } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/ai/types";
+import { skillKey } from "@/lib/skill-normalization";
+import { buildProfileContext } from "@/lib/ai/profile-context";
 
 async function buildProfileSummary() {
   const profile = await getProfile();
-  return `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim() +
-    ` — ${profile.educationLevel ?? "formation non renseignée"}${profile.fieldOfStudy ? ` en ${profile.fieldOfStudy}` : ""}, ${profile.yearsOfExperience} an(s) d'expérience. Compétences : ${profile.skills.join(", ") || "non renseignées"}. Langues : ${profile.languages.map((l) => l.language).join(", ") || "non renseignées"}.`;
+  return buildProfileContext(profile, { includeContact: false, includeCv: true });
 }
 
 async function getApplicationContext(applicationId: string) {
@@ -26,8 +27,8 @@ async function getApplicationContext(applicationId: string) {
 
 function matchedSkillsFor(requiredSkillsJson: string | null | undefined, profileSkills: string[]): string[] {
   const required = safeJsonParse<string[]>(requiredSkillsJson, []);
-  const lower = profileSkills.map((s) => s.toLowerCase());
-  return required.filter((r) => lower.includes(r.toLowerCase()));
+  const profileKeys = new Set(profileSkills.map(skillKey));
+  return required.filter((r) => profileKeys.has(skillKey(r)));
 }
 
 // --- Cover letter -----------------------------------------------------
@@ -123,7 +124,7 @@ export async function improveCvForApplication(applicationId: string): Promise<Cv
     application.jobAnalysis?.rawExtractedText ??
     [application.jobAnalysis?.responsibilities, application.jobAnalysis?.qualifications].filter(Boolean).join("\n");
 
-  return optimizeCvForJob(profile.cvRawText, jobDescription || application.title);
+  return optimizeCvForJob(`${buildProfileContext(profile, { includeContact: false, includeCv: false })}\n\nCV brut :\n${profile.cvRawText}`, jobDescription || application.title);
 }
 
 // --- Interview prep -------------------------------------------------------
@@ -158,21 +159,12 @@ export async function askAssistantAction(history: ChatMessage[]) {
     }),
   ]);
 
-  const profileLines = [
-    `Nom : ${[profile.firstName, profile.lastName].filter(Boolean).join(" ") || "non renseigné"}`,
-    `Formation : ${profile.educationLevel ?? "non renseignée"}${profile.fieldOfStudy ? ` en ${profile.fieldOfStudy}` : ""}${profile.graduationYear ? `, diplôme prévu ${profile.graduationYear}` : ""}`,
-    `Expérience : ${profile.yearsOfExperience} an(s)`,
-    `Compétences : ${profile.skills.join(", ") || "non renseignées"}`,
-    `Langues : ${profile.languages.map((l) => `${l.language} (${l.level})`).join(", ") || "non renseignées"}`,
-    `Disponibilité : ${profile.availabilityNote ?? "non renseignée"}`,
-  ];
-
   const oppLines = applications.map((a) => {
     const match = a.jobAnalysis?.matchScore != null ? `${a.jobAnalysis.matchScore}%` : "non analysé";
     return `- ${a.company.name} — ${a.title} — statut: ${a.status.label} — match: ${match}${a.deadline ? ` — deadline: ${a.deadline.toISOString().slice(0, 10)}` : ""}`;
   });
 
-  const contextSummary = `PROFIL:\n${profileLines.join("\n")}\n\nOPPORTUNITÉS (${applications.length}) :\n${oppLines.join("\n") || "Aucune opportunité enregistrée."}`;
+  const contextSummary = `${buildProfileContext(profile, { includeContact: true, includeCv: true })}\n\nOPPORTUNITÉS (${applications.length}) :\n${oppLines.join("\n") || "Aucune opportunité enregistrée."}`;
 
   const reply = await askAssistant(history, contextSummary);
   if (!reply) {

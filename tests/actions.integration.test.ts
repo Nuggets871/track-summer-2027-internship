@@ -5,8 +5,8 @@
  * opportunity, changing its status, and the backup / CSV import-export
  * round trips.
  */
-import { execSync } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import Papa from "papaparse";
@@ -24,11 +24,15 @@ const TEST_DB_PATH = path.join(process.cwd(), "prisma", "test.db");
 
 beforeAll(() => {
   if (existsSync(TEST_DB_PATH)) rmSync(TEST_DB_PATH);
-  execSync("npx prisma db push --skip-generate --accept-data-loss", {
-    cwd: process.cwd(),
-    env: { ...process.env, DATABASE_URL: "file:./test.db", CHECKPOINT_DISABLE: "1" },
-    stdio: "pipe",
-  });
+  // Apply the checked-in SQLite migrations directly. This keeps the harness
+  // deterministic and also preserves migrations that create FTS virtual
+  // tables, which `prisma db push` treats as unmanaged drift.
+  const migrationsRoot = path.join(process.cwd(), "prisma", "migrations");
+  for (const directory of readdirSync(migrationsRoot).sort()) {
+    const migrationPath = path.join(migrationsRoot, directory, "migration.sql");
+    if (!existsSync(migrationPath)) continue;
+    execFileSync("sqlite3", [TEST_DB_PATH], { input: readFileSync(migrationPath), stdio: ["pipe", "pipe", "pipe"] });
+  }
 });
 
 afterAll(async () => {

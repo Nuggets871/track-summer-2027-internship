@@ -10,6 +10,7 @@ import { computeJobMatch, computeEligibility, type MatchResult, type Eligibility
 import { getProfile } from "@/lib/data/profile";
 import { getSettings } from "@/lib/data/settings";
 import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
+import { normalizeSkillList } from "@/lib/skill-normalization";
 const FETCH_TIMEOUT_MS = 12_000;
 
 export type DuplicateMatch = { id: string; title: string; companyName: string } | null;
@@ -96,9 +97,9 @@ function mergeAiIntoBaseline(baseline: ExtractedJobData, ai: Awaited<ReturnType<
   fillIfEmpty("startDate", ai.startDate);
   fillIfEmpty("deadline", ai.deadline);
   fillIfEmpty("contractType", ai.contractType);
-  if (ai.requiredSkills?.length) {
-    merged.requiredSkills = dedupeCaseInsensitive([...merged.requiredSkills, ...ai.requiredSkills]);
-  }
+  // The grounded AI list is authoritative for requirement semantics: unlike
+  // the lexical fallback it excludes company-stack and nice-to-have mentions.
+  if (ai.requiredSkills) merged.requiredSkills = normalizeSkillList(ai.requiredSkills);
   if (ai.requiredLanguages?.length) {
     const normalized = ai.requiredLanguages.map(normalizeLanguageName);
     merged.requiredLanguages = dedupeCaseInsensitive([...merged.requiredLanguages, ...normalized]);

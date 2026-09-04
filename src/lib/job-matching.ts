@@ -10,6 +10,7 @@
 
 import { EDUCATION_LEVELS, LANGUAGE_LEVELS, matchLabel } from "@/lib/constants";
 import { clamp } from "@/lib/utils";
+import { skillKey } from "@/lib/skill-normalization";
 
 export type ScoreFactor = {
   key: string;
@@ -27,7 +28,7 @@ export type ScoreResult = {
   factors: ScoreFactor[];
 };
 
-export type ProfileLanguage = { language: string; level: string };
+export type ProfileLanguage = { language: string; level: string; detail?: string | null };
 
 export type ProfileForMatching = {
   educationLevel: string | null;
@@ -92,9 +93,9 @@ export function computeJobMatch(
   const watchouts: string[] = [];
 
   // --- Skills ---------------------------------------------------------
-  const profileSkillsLower = profile.skills.map(norm);
-  const matchedSkills = job.requiredSkills.filter((s) => profileSkillsLower.includes(norm(s)));
-  const missingSkills = job.requiredSkills.filter((s) => !profileSkillsLower.includes(norm(s)));
+  const profileSkillKeys = new Set(profile.skills.map(skillKey));
+  const matchedSkills = job.requiredSkills.filter((s) => profileSkillKeys.has(skillKey(s)));
+  const missingSkills = job.requiredSkills.filter((s) => !profileSkillKeys.has(skillKey(s)));
   const skillsScore =
     job.requiredSkills.length === 0 ? 65 : clamp((matchedSkills.length / job.requiredSkills.length) * 100, 0, 100);
   if (matchedSkills.length > 0) strengths.push(`Compétences en ${matchedSkills.join(", ")} correspondant aux attentes`);

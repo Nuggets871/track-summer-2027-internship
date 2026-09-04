@@ -2,7 +2,7 @@ import { aiChat } from "@/lib/ai/provider";
 
 const SYSTEM_PROMPT = `Tu compares le CV d'un candidat à une offre de stage et proposes des améliorations concrètes.
 
-RÈGLE ABSOLUE : ne suggère jamais d'ajouter une expérience, un diplôme ou une compétence que le candidat n'a pas. Tu peux seulement suggérer de reformuler, réordonner, ou mettre en avant des éléments RÉELLEMENT présents dans le CV fourni, et signaler des mots-clés de l'offre qui manquent (à acquérir ou à mentionner uniquement si le candidat les possède réellement).
+RÈGLE ABSOLUE : ne suggère jamais d'ajouter une expérience, un diplôme, un projet, un résultat chiffré ou une compétence que le candidat n'a pas. Le dossier candidat structuré complète le texte du CV et constitue la source de vérité. Tu peux suggérer de reformuler, réordonner, ou mettre en avant des éléments RÉELLEMENT présents, et signaler les mots-clés réellement absents. Chaque réécriture doit conserver exactement le sens et les faits de l'original.
 
 Réponds UNIQUEMENT avec un objet JSON valide :
 {

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { updateProfile } from "@/lib/actions/profile";
 import { EDUCATION_LEVELS, LANGUAGE_LEVELS } from "@/lib/constants";
-import type { AppProfile, ProfileExperience } from "@/lib/data/profile";
+import type { AppProfile, ProfileEducation, ProfileExperience, ProfileProject } from "@/lib/data/profile";
 
 export function ProfileForm({ profile }: { profile: AppProfile }) {
   const [pending, startTransition] = useTransition();
@@ -18,6 +18,9 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
   const [lastName, setLastName] = useState(profile.lastName ?? "");
   const [email, setEmail] = useState(profile.email ?? "");
   const [phone, setPhone] = useState(profile.phone ?? "");
+  const [location, setLocation] = useState(profile.location ?? "");
+  const [headline, setHeadline] = useState(profile.headline ?? "");
+  const [summary, setSummary] = useState(profile.summary ?? "");
   const [linkedinUrl, setLinkedinUrl] = useState(profile.linkedinUrl ?? "");
   const [githubUrl, setGithubUrl] = useState(profile.githubUrl ?? "");
   const [portfolioUrl, setPortfolioUrl] = useState(profile.portfolioUrl ?? "");
@@ -26,6 +29,8 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
   const [graduationYear, setGraduationYear] = useState(profile.graduationYear?.toString() ?? "");
   const [yearsOfExperience, setYearsOfExperience] = useState(profile.yearsOfExperience);
   const [experiences, setExperiences] = useState<ProfileExperience[]>(profile.experiences);
+  const [educationHistory, setEducationHistory] = useState<ProfileEducation[]>(profile.educationHistory);
+  const [projects, setProjects] = useState<ProfileProject[]>(profile.projects);
   const [skills, setSkills] = useState(profile.skills.join(", "));
   const [languages, setLanguages] = useState(
     profile.languages.length > 0 ? profile.languages : [{ language: "Anglais", level: "FLUENT" }],
@@ -40,6 +45,9 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
         lastName: lastName || null,
         email: email || null,
         phone: phone || null,
+        location: location || null,
+        headline: headline || null,
+        summary: summary || null,
         linkedinUrl: linkedinUrl || null,
         githubUrl: githubUrl || null,
         portfolioUrl: portfolioUrl || null,
@@ -48,6 +56,8 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
         graduationYear: graduationYear ? Number(graduationYear) : null,
         yearsOfExperience,
         experiences: experiences.filter((e) => e.title.trim() || e.company.trim()),
+        educationHistory: educationHistory.filter((e) => e.institution.trim() || e.degree.trim()),
+        projects: projects.filter((p) => p.name.trim()),
         skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
         languages: languages.filter((l) => l.language.trim()),
         workAuthorization: workAuthorization || null,
@@ -76,6 +86,40 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
           <Field label="Téléphone">
             <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
           </Field>
+          <Field label="Localisation">
+            <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Lyon, France" />
+          </Field>
+          <Field label="Titre professionnel">
+            <Input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Étudiant ingénieur — Développeur full-stack" />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Présentation">
+              <Textarea rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} />
+            </Field>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Parcours académique détaillé</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {educationHistory.map((education, i) => (
+            <div key={i} className="flex flex-col gap-2 rounded-md border border-border p-3">
+              <div className="flex items-center gap-2">
+                <Input value={education.degree} placeholder="Diplôme" onChange={(e) => setEducationHistory((prev) => prev.map((item, index) => index === i ? { ...item, degree: e.target.value } : item))} />
+                <Input value={education.institution} placeholder="Établissement" onChange={(e) => setEducationHistory((prev) => prev.map((item, index) => index === i ? { ...item, institution: e.target.value } : item))} />
+                <button className="text-muted-foreground hover:text-danger" onClick={() => setEducationHistory((prev) => prev.filter((_, index) => index !== i))}><Trash2 className="size-4" /></button>
+              </div>
+              <div className="flex gap-2">
+                <Input value={education.startDate ?? ""} placeholder="Début" onChange={(e) => setEducationHistory((prev) => prev.map((item, index) => index === i ? { ...item, startDate: e.target.value } : item))} />
+                <Input value={education.endDate ?? ""} placeholder="Fin" onChange={(e) => setEducationHistory((prev) => prev.map((item, index) => index === i ? { ...item, endDate: e.target.value } : item))} />
+              </div>
+              <Textarea rows={2} value={education.description ?? ""} placeholder="Contenu de la formation" onChange={(e) => setEducationHistory((prev) => prev.map((item, index) => index === i ? { ...item, description: e.target.value } : item))} />
+            </div>
+          ))}
+          <Button variant="outline" size="sm" className="self-start" onClick={() => setEducationHistory((prev) => [...prev, { institution: "", degree: "", startDate: null, endDate: null, description: null }])}><Plus /> Ajouter une formation</Button>
         </CardContent>
       </Card>
 
@@ -202,6 +246,30 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
 
       <Card>
         <CardHeader>
+          <CardTitle>Projets</CardTitle>
+          <CardDescription>Ces détails servent de preuves concrètes dans les lettres, le CV et les préparations d’entretien.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {projects.map((project, i) => (
+            <div key={i} className="flex flex-col gap-2 rounded-md border border-border p-3">
+              <div className="flex items-center gap-2">
+                <Input value={project.name} placeholder="Nom du projet" onChange={(e) => setProjects((prev) => prev.map((item, index) => index === i ? { ...item, name: e.target.value } : item))} />
+                <button className="text-muted-foreground hover:text-danger" onClick={() => setProjects((prev) => prev.filter((_, index) => index !== i))}><Trash2 className="size-4" /></button>
+              </div>
+              <Textarea rows={3} value={project.description} placeholder="Objectif, fonctionnalités et contribution personnelle" onChange={(e) => setProjects((prev) => prev.map((item, index) => index === i ? { ...item, description: e.target.value } : item))} />
+              <Input value={project.technologies.join(", ")} placeholder="Technologies, séparées par des virgules" onChange={(e) => setProjects((prev) => prev.map((item, index) => index === i ? { ...item, technologies: e.target.value.split(",").map((value) => value.trim()).filter(Boolean) } : item))} />
+              <div className="flex gap-2">
+                <Input value={project.url ?? ""} placeholder="URL de démonstration" onChange={(e) => setProjects((prev) => prev.map((item, index) => index === i ? { ...item, url: e.target.value || null } : item))} />
+                <Input value={project.repositoryUrl ?? ""} placeholder="URL du dépôt" onChange={(e) => setProjects((prev) => prev.map((item, index) => index === i ? { ...item, repositoryUrl: e.target.value || null } : item))} />
+              </div>
+            </div>
+          ))}
+          <Button variant="outline" size="sm" className="self-start" onClick={() => setProjects((prev) => [...prev, { name: "", description: "", technologies: [], url: null, repositoryUrl: null }])}><Plus /> Ajouter un projet</Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Langues</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
@@ -228,12 +296,18 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
                   ))}
                 </SelectContent>
               </Select>
+              <Input
+                className="flex-1"
+                value={lang.detail ?? ""}
+                onChange={(e) => setLanguages((prev) => prev.map((l, idx) => (idx === i ? { ...l, detail: e.target.value || null } : l)))}
+                placeholder="Ex : C1 — TOEIC 950/990"
+              />
               <button className="text-muted-foreground hover:text-danger" onClick={() => setLanguages((prev) => prev.filter((_, idx) => idx !== i))}>
                 <Trash2 className="size-4" />
               </button>
             </div>
           ))}
-          <Button variant="outline" size="sm" className="self-start" onClick={() => setLanguages((prev) => [...prev, { language: "", level: "INTERMEDIATE" }])}>
+          <Button variant="outline" size="sm" className="self-start" onClick={() => setLanguages((prev) => [...prev, { language: "", level: "INTERMEDIATE", detail: null }])}>
             <Plus /> Ajouter une langue
           </Button>
         </CardContent>

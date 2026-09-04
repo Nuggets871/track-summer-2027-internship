@@ -12,6 +12,7 @@ import { isAiConfigured } from "@/lib/ai/provider";
 import { scoreListingFields } from "@/lib/discover/scoring";
 import { safeJsonParse } from "@/lib/utils";
 import { normalizeLanguageName } from "@/lib/job-extraction";
+import { normalizeSkillList } from "@/lib/skill-normalization";
 import { parseDiscoverQuery, type ParsedDiscoverQuery } from "@/lib/ai/prompts/discover-query-parser";
 
 const emptyToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
@@ -306,9 +307,9 @@ export async function analyzeListingWithAi(listingId: string) {
   const ai = await extractJobPostingWithAI(text);
   if (!ai) throw new Error("L'IA n'a pas pu analyser cette offre.");
 
-  const requiredSkills = Array.from(
-    new Set([...safeJsonParse<string[]>(listing.requiredSkills, []), ...(ai.requiredSkills ?? [])]),
-  );
+  const requiredSkills = ai.requiredSkills
+    ? normalizeSkillList(ai.requiredSkills)
+    : normalizeSkillList(safeJsonParse<string[]>(listing.requiredSkills, []));
   const requiredLanguages = Array.from(
     new Set([
       ...safeJsonParse<string[]>(listing.requiredLanguages, []),

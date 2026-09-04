@@ -587,6 +587,9 @@ model Profile {
   lastName  String?
   email     String?
   phone     String?
+  location  String?
+  headline  String?
+  summary   String?
 
   // Links most job applications ask for directly — kept front and center
   // on the Opportunity detail page's Application section for quick copy.
@@ -600,8 +603,10 @@ model Profile {
   graduationYear    Int?
   yearsOfExperience Int     @default(0)
 
-  // Experience — JSON array of { title, company, startDate, endDate, description }
+  // Rich candidate history used to ground every AI workflow.
   experiences String?
+  educationHistory String? // JSON array of { institution, degree, startDate, endDate, description }
+  projects String? // JSON array of { name, description, technologies, url, repositoryUrl }
 
   // Skills & languages
   skills    String? // JSON array of strings

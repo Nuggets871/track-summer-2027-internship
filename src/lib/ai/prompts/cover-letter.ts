@@ -24,7 +24,7 @@ export type CoverLetterInput = {
 };
 
 const GROUNDING_RULE =
-  "N'invente jamais une expérience, un diplôme ou une compétence qui n'est pas mentionné dans le profil fourni. Si le profil manque d'éléments pour une phrase, reste général plutôt que d'inventer un fait.";
+  "N'invente jamais une expérience, un diplôme, une compétence, un résultat chiffré ou une motivation qui n'est pas mentionné dans le dossier candidat. Utilise en priorité un projet ou une réalisation dont les technologies correspondent réellement à l'offre. N'affirme jamais qu'une compétence manquante est acquise.";
 
 export async function generateCoverLetter(input: CoverLetterInput): Promise<string | null> {
   const languageInstruction = input.language === "EN" ? "Write entirely in English." : "Rédige entièrement en français.";
@@ -38,7 +38,7 @@ export async function generateCoverLetter(input: CoverLetterInput): Promise<stri
         },
         {
           role: "user",
-          content: `Brouillon actuel :\n${input.previousDraft}\n\nInstruction : ${input.refineInstruction}`,
+          content: `DOSSIER CANDIDAT :\n${input.profileSummary}\n\nOFFRE :\n${input.companyName} — ${input.title}\n${input.jobDescription ?? "Description non précisée"}\n\nBROUILLON ACTUEL :\n${input.previousDraft}\n\nINSTRUCTION DE RÉÉCRITURE : ${input.refineInstruction}`,
         },
       ],
       { temperature: 0.4 },
@@ -56,6 +56,7 @@ Compétences du candidat qui correspondent à l'offre : ${input.matchedSkills.jo
 Profil du candidat : ${input.profileSummary}
 
 ${GROUNDING_RULE}
+Choisis au maximum deux preuves concrètes et pertinentes dans les expériences ou projets du dossier. Relie chacune à un besoin explicite de l'offre. Évite les généralités interchangeables et n'énumère pas simplement des technologies.
 Ne signe pas la lettre (pas de formule de politesse finale + nom). C'est un premier brouillon que le candidat va personnaliser ensuite.`;
 
   return aiChat(

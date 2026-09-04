@@ -7,6 +7,7 @@ import { getOrCreateProfileRow } from "@/lib/data/profile";
 import { parseCvWithAI } from "@/lib/ai/prompts/cv-parsing";
 import { extractTextFromCvFile } from "@/lib/cv-file-text";
 import { recomputeAllLocalScores } from "@/lib/discover/scoring";
+import { normalizeSkillList } from "@/lib/skill-normalization";
 
 const emptyToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 
@@ -27,11 +28,30 @@ const experienceSchema = z.object({
   description: z.preprocess(emptyToNull, z.string().nullable().optional()),
 });
 
+const educationSchema = z.object({
+  institution: z.string(),
+  degree: z.string(),
+  startDate: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  endDate: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  description: z.preprocess(emptyToNull, z.string().nullable().optional()),
+});
+
+const projectSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  technologies: z.array(z.string()).default([]),
+  url: z.preprocess(normalizeUrl, z.string().nullable().optional()),
+  repositoryUrl: z.preprocess(normalizeUrl, z.string().nullable().optional()),
+});
+
 const profileSchema = z.object({
   firstName: z.preprocess(emptyToNull, z.string().nullable().optional()),
   lastName: z.preprocess(emptyToNull, z.string().nullable().optional()),
   email: z.preprocess(emptyToNull, z.string().nullable().optional()),
   phone: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  location: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  headline: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  summary: z.preprocess(emptyToNull, z.string().nullable().optional()),
   linkedinUrl: z.preprocess(normalizeUrl, z.string().nullable().optional()),
   githubUrl: z.preprocess(normalizeUrl, z.string().nullable().optional()),
   portfolioUrl: z.preprocess(normalizeUrl, z.string().nullable().optional()),
@@ -40,8 +60,10 @@ const profileSchema = z.object({
   graduationYear: z.preprocess(emptyToNull, z.coerce.number().int().nullable().optional()),
   yearsOfExperience: z.coerce.number().int().min(0).default(0),
   experiences: z.array(experienceSchema).default([]),
+  educationHistory: z.array(educationSchema).default([]),
+  projects: z.array(projectSchema).default([]),
   skills: z.array(z.string()).default([]),
-  languages: z.array(z.object({ language: z.string(), level: z.string() })).default([]),
+  languages: z.array(z.object({ language: z.string(), level: z.string(), detail: z.preprocess(emptyToNull, z.string().nullable().optional()) })).default([]),
   workAuthorization: z.preprocess(emptyToNull, z.string().nullable().optional()),
   availabilityNote: z.preprocess(emptyToNull, z.string().nullable().optional()),
 });
@@ -59,6 +81,9 @@ export async function updateProfile(raw: ProfileInput) {
       lastName: data.lastName,
       email: data.email,
       phone: data.phone,
+      location: data.location,
+      headline: data.headline,
+      summary: data.summary,
       linkedinUrl: data.linkedinUrl,
       githubUrl: data.githubUrl,
       portfolioUrl: data.portfolioUrl,
@@ -67,7 +92,9 @@ export async function updateProfile(raw: ProfileInput) {
       graduationYear: data.graduationYear,
       yearsOfExperience: data.yearsOfExperience,
       experiences: JSON.stringify(data.experiences),
-      skills: JSON.stringify(data.skills),
+      educationHistory: JSON.stringify(data.educationHistory),
+      projects: JSON.stringify(data.projects),
+      skills: JSON.stringify(normalizeSkillList(data.skills)),
       languages: JSON.stringify(data.languages),
       workAuthorization: data.workAuthorization,
       availabilityNote: data.availabilityNote,
@@ -139,13 +166,18 @@ const applyCvSchema = z.object({
   lastName: z.preprocess(emptyToNull, z.string().nullable().optional()),
   email: z.preprocess(emptyToNull, z.string().nullable().optional()),
   phone: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  location: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  headline: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  summary: z.preprocess(emptyToNull, z.string().nullable().optional()),
   educationLevel: z.preprocess(emptyToNull, z.string().nullable().optional()),
   fieldOfStudy: z.preprocess(emptyToNull, z.string().nullable().optional()),
   graduationYear: z.preprocess(emptyToNull, z.coerce.number().int().nullable().optional()),
   yearsOfExperience: z.preprocess(emptyToNull, z.coerce.number().int().nullable().optional()),
   skills: z.array(z.string()).default([]),
-  languages: z.array(z.object({ language: z.string(), level: z.string() })).default([]),
+  languages: z.array(z.object({ language: z.string(), level: z.string(), detail: z.preprocess(emptyToNull, z.string().nullable().optional()) })).default([]),
   experiences: z.array(experienceSchema).default([]),
+  educationHistory: z.array(educationSchema).default([]),
+  projects: z.array(projectSchema).default([]),
 });
 
 /**
@@ -167,15 +199,20 @@ export async function applyCvToProfile(raw: z.infer<typeof applyCvSchema>) {
       ...(data.lastName ? { lastName: data.lastName } : {}),
       ...(data.email ? { email: data.email } : {}),
       ...(data.phone ? { phone: data.phone } : {}),
+      ...(data.location ? { location: data.location } : {}),
+      ...(data.headline ? { headline: data.headline } : {}),
+      ...(data.summary ? { summary: data.summary } : {}),
       ...(data.educationLevel ? { educationLevel: data.educationLevel } : {}),
       ...(data.fieldOfStudy ? { fieldOfStudy: data.fieldOfStudy } : {}),
       ...(data.graduationYear ? { graduationYear: data.graduationYear } : {}),
       ...(data.yearsOfExperience !== null && data.yearsOfExperience !== undefined
         ? { yearsOfExperience: data.yearsOfExperience }
         : {}),
-      ...(data.skills.length ? { skills: JSON.stringify(data.skills) } : {}),
+      ...(data.skills.length ? { skills: JSON.stringify(normalizeSkillList(data.skills)) } : {}),
       ...(data.languages.length ? { languages: JSON.stringify(data.languages) } : {}),
       ...(data.experiences.length ? { experiences: JSON.stringify(data.experiences) } : {}),
+      ...(data.educationHistory.length ? { educationHistory: JSON.stringify(data.educationHistory) } : {}),
+      ...(data.projects.length ? { projects: JSON.stringify(data.projects) } : {}),
     },
   });
 

@@ -16,6 +16,7 @@
 // pasted by hand when the page couldn't be fetched at all.
 
 import { COMMON_LANGUAGES, EDUCATION_LEVELS, MASTER_SKILLS } from "@/lib/constants";
+import { aliasesForSkill, canonicalizeSkillName, normalizeSkillList } from "@/lib/skill-normalization";
 
 export type ExtractedJobData = {
   title: string | null;
@@ -61,7 +62,9 @@ const EMPTY: Omit<ExtractedJobData, "extractionMethod" | "rawText"> = {
   contractType: null,
 };
 
-const MAX_RAW_TEXT = 12_000;
+// About 7–8k tokens: large enough for long ATS pages while staying well
+// within the provider context window after the system prompt is added.
+const MAX_RAW_TEXT = 30_000;
 
 // Job pages routinely bury the actual posting under recurring UI chrome —
 // cookie banners, nav menus, footers, share/login buttons — which eats into
@@ -223,9 +226,11 @@ function detectRemoteType(text: string): ExtractedJobData["remoteType"] {
 function detectSkills(text: string): string[] {
   const found = new Set<string>();
   for (const skill of MASTER_SKILLS) {
-    const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = new RegExp(`(?<![a-zA-Z0-9])${escaped}(?![a-zA-Z0-9])`, "i");
-    if (pattern.test(text)) found.add(skill);
+    const detected = aliasesForSkill(skill).some((alias) => {
+      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(?<![a-zA-Z0-9])${escaped}(?![a-zA-Z0-9])`, "i").test(text);
+    });
+    if (detected) found.add(canonicalizeSkillName(skill));
   }
   return [...found];
 }
@@ -279,8 +284,28 @@ function detectEducationLevel(text: string): string | null {
 }
 
 function detectExperienceYears(text: string): number | null {
-  const match = text.match(/(\d{1,2})\s*\+?\s*(?:years?|ans?)\s*(?:of\s*)?(?:experience|d['e]xp[ée]rience)/i);
-  return match ? Number(match[1]) : null;
+  const pattern = /(\d{1,2})\s*\+?\s*(?:years?|ans?)\s*(?:(?:of|d['’]?)\s*)?(?:(?:professional|relevant|work|professionnelle?)\s+)?(?:experience|exp[ée]rience)/gi;
+  const candidateCue = /\b(you|your|candidate|applicant|must|required?|requirements?|minimum|at least|profile|qualifications?|vous|votre|candidat|profil|requis|exig[ée]|au moins|justifier|poss[ée]der)\b/i;
+  const companyCue = /\b(company|business|firm|organisation|organization|our team|collective|combined|founder|founded|established|operating|serving|track record|in business|entreprise|soci[ée]t[ée]|équipe|fondateur|fond[ée]e?|cr[ée][ée]e?|existe|depuis)\b/i;
+  const sectionCue = /\b(qualifications?|requirements?|your profile|profil recherch[ée]|ce que nous recherchons|anforderungen|perfil)\b/i;
+
+  for (const match of text.matchAll(pattern)) {
+    const years = Number(match[1]);
+    if (!Number.isInteger(years) || years < 0 || years > 15) continue;
+    const index = match.index ?? 0;
+    const sentenceStart = Math.max(text.lastIndexOf("\n", index), text.lastIndexOf(".", index), 0);
+    const nextNewline = text.indexOf("\n", index + match[0].length);
+    const nextPeriod = text.indexOf(".", index + match[0].length);
+    const candidates = [nextNewline, nextPeriod].filter((value) => value >= 0);
+    const sentenceEnd = candidates.length ? Math.min(...candidates) : Math.min(text.length, index + 220);
+    const sentence = text.slice(sentenceStart, sentenceEnd);
+    const subjectPrefix = text.slice(sentenceStart, index);
+    const nearbyBefore = text.slice(Math.max(0, index - 220), index);
+    if (companyCue.test(subjectPrefix) && !candidateCue.test(subjectPrefix)) continue;
+    if (companyCue.test(sentence) && !candidateCue.test(sentence)) continue;
+    if (candidateCue.test(sentence) || sectionCue.test(nearbyBefore)) return years;
+  }
+  return null;
 }
 
 function detectSalary(text: string): { salaryAmount: number | null; salaryCurrency: string | null } {
@@ -345,12 +370,14 @@ function detectContractType(text: string): string | null {
 }
 
 function extractHeuristics(text: string, titleHint: string | null): Partial<ExtractedJobData> {
+  const responsibilities = findSection(text, ["Responsibilities", "Missions", "What you'll do", "Le poste"]);
+  const qualifications = findSection(text, ["Qualifications", "Requirements", "Profil recherché", "Skills required", "Ce que nous recherchons"]);
   return {
     title: titleHint,
     remoteType: detectRemoteType(text),
-    responsibilities: findSection(text, ["Responsibilities", "Missions", "What you'll do", "Le poste"]),
-    qualifications: findSection(text, ["Qualifications", "Requirements", "Profil recherché", "Skills required", "Ce que nous recherchons"]),
-    requiredSkills: detectSkills(text),
+    responsibilities,
+    qualifications,
+    requiredSkills: normalizeSkillList(detectSkills(qualifications ?? text)),
     requiredLanguages: detectLanguages(text),
     requiredEducationLevel: detectEducationLevel(text),
     requiredExperienceYears: detectExperienceYears(text),

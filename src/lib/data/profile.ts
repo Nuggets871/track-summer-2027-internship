@@ -5,7 +5,9 @@ import type { ProfileForMatching, ProfileLanguage } from "@/lib/job-matching";
 export async function getOrCreateProfileRow() {
   const existing = await prisma.profile.findUnique({ where: { id: "singleton" } });
   if (existing) return existing;
-  return prisma.profile.create({ data: { id: "singleton", skills: "[]", languages: "[]", experiences: "[]" } });
+  return prisma.profile.create({
+    data: { id: "singleton", skills: "[]", languages: "[]", experiences: "[]", educationHistory: "[]", projects: "[]" },
+  });
 }
 
 export type ProfileExperience = {
@@ -16,16 +18,37 @@ export type ProfileExperience = {
   description: string | null;
 };
 
+export type ProfileEducation = {
+  institution: string;
+  degree: string;
+  startDate: string | null;
+  endDate: string | null;
+  description: string | null;
+};
+
+export type ProfileProject = {
+  name: string;
+  description: string;
+  technologies: string[];
+  url: string | null;
+  repositoryUrl: string | null;
+};
+
 export type AppProfile = ProfileForMatching & {
   firstName: string | null;
   lastName: string | null;
   email: string | null;
   phone: string | null;
+  location: string | null;
+  headline: string | null;
+  summary: string | null;
   linkedinUrl: string | null;
   githubUrl: string | null;
   portfolioUrl: string | null;
   fieldOfStudy: string | null;
   experiences: ProfileExperience[];
+  educationHistory: ProfileEducation[];
+  projects: ProfileProject[];
   cvDocumentId: string | null;
   cvRawText: string | null;
   cvParsedAt: Date | null;
@@ -39,6 +62,9 @@ export async function getProfile(): Promise<AppProfile> {
     lastName: row.lastName,
     email: row.email,
     phone: row.phone,
+    location: row.location,
+    headline: row.headline,
+    summary: row.summary,
     linkedinUrl: row.linkedinUrl,
     githubUrl: row.githubUrl,
     portfolioUrl: row.portfolioUrl,
@@ -47,6 +73,8 @@ export async function getProfile(): Promise<AppProfile> {
     graduationYear: row.graduationYear,
     yearsOfExperience: row.yearsOfExperience,
     experiences: safeJsonParse<ProfileExperience[]>(row.experiences, []),
+    educationHistory: safeJsonParse<ProfileEducation[]>(row.educationHistory, []),
+    projects: safeJsonParse<ProfileProject[]>(row.projects, []),
     skills: safeJsonParse<string[]>(row.skills, []),
     languages: safeJsonParse<ProfileLanguage[]>(row.languages, []),
     workAuthorization: row.workAuthorization,
