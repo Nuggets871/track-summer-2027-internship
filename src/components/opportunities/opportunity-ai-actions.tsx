@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
-import { RefreshCw, FileSearch, MessageCircleQuestion, GraduationCap, ArrowRight } from "lucide-react";
+import { RefreshCw, FileSearch, GraduationCap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui/dialog";
@@ -17,11 +16,15 @@ export function OpportunityAiActions({
   aiConfigured,
   interviewPrepNotes,
   hasCv,
+  statusKey,
+  applicationType,
 }: {
   applicationId: string;
   aiConfigured: boolean;
   interviewPrepNotes: string | null;
   hasCv: boolean;
+  statusKey: string;
+  applicationType: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [cvResult, setCvResult] = useState<CvOptimizationResult | null>(null);
@@ -48,7 +51,7 @@ export function OpportunityAiActions({
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
-          <Button
+          {applicationType === "ADVERTISED" && <Button
             size="sm"
             variant="outline"
             disabled={pending}
@@ -62,7 +65,7 @@ export function OpportunityAiActions({
             }
           >
             <RefreshCw className="size-3.5" /> Analyser à nouveau
-          </Button>
+          </Button>}
           <Button
             size="sm"
             variant="outline"
@@ -84,7 +87,7 @@ export function OpportunityAiActions({
           >
             <FileSearch className="size-3.5" /> Améliorer mon CV pour ce poste
           </Button>
-          <Button
+          {statusKey === "INTERVIEW" && <Button
             size="sm"
             variant="outline"
             disabled={pending}
@@ -103,12 +106,7 @@ export function OpportunityAiActions({
             }
           >
             <GraduationCap className="size-3.5" /> Préparer l&apos;entretien
-          </Button>
-          <Button size="sm" variant="outline" asChild>
-            <Link href="/assistant">
-              <MessageCircleQuestion className="size-3.5" /> Demander à l&apos;assistant <ArrowRight className="size-3.5" />
-            </Link>
-          </Button>
+          </Button>}
         </div>
 
         {prepNotes && (

@@ -1,4 +1,4 @@
-# Summer 2027 Internship Tracker
+# Stage Copilot
 
 Application web **personnelle et 100% locale** pour piloter une recherche de
 stage à l'étranger, organisée autour d'une seule logique simple :
@@ -441,11 +441,11 @@ Avant le premier lancement, créez un fichier `.env` sur le serveur avec une
 entrée Basic Auth générée par `htpasswd` (ne commitez jamais ce fichier) :
 
 ```bash
-htpasswd -nbB christopher 'un-mot-de-passe-fort'
+htpasswd -nbB candidate 'un-mot-de-passe-fort'
 ```
 
 Copiez la ligne produite dans `.env` sous la forme
-`BASIC_AUTH_USERS='christopher:$2y$...'`, puis lancez :
+`BASIC_AUTH_USERS='candidate:$2y$...'`, puis lancez :
 
 ```bash
 FORCE_DEPLOY=1 ./deploy.sh

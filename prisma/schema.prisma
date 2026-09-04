@@ -166,6 +166,16 @@ model Application {
 
   notes              String?
   interviewPrepNotes String? // AI-generated "Prepare interview" output, rattaché directement à l'opportunité
+  applicationType    String   @default("ADVERTISED") // ADVERTISED | SPONTANEOUS
+  outreachChannel    String? // EMAIL | LINKEDIN | WEBSITE | CONTACT | OTHER
+  recipientName      String?
+  recipientValue     String? // email address, profile URL or application URL
+  targetRole         String?
+  companyResearch    String?
+  messageDraft       String?
+  contactedAt        DateTime?
+  followUpAt         DateTime?
+  aiChatHistory      String? // JSON array of opportunity-scoped chat messages
   isDemo             Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -352,6 +362,8 @@ model CoverLetter {
   personalizedElements String?
   documentId           String?
   notes                String?
+  chatHistory          String? // JSON array of user/assistant refinement messages
+  revisionHistory      String? // JSON array of previous generated versions
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
 }

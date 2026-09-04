@@ -24,7 +24,14 @@ export type CoverLetterInput = {
 };
 
 const GROUNDING_RULE =
-  "N'invente jamais une expérience, un diplôme, une compétence, un résultat chiffré ou une motivation qui n'est pas mentionné dans le dossier candidat. Utilise en priorité un projet ou une réalisation dont les technologies correspondent réellement à l'offre. N'affirme jamais qu'une compétence manquante est acquise.";
+  "N'invente jamais une expérience, un diplôme, une compétence, un résultat chiffré ou une motivation qui n'est pas mentionné dans le dossier candidat. N'affirme jamais qu'une compétence manquante est acquise.";
+
+const NATURAL_STYLE_RULES = `STYLE HUMAIN ET SPÉCIFIQUE :
+- N'utilise aucun tiret cadratin (—).
+- Évite les oppositions rhétoriques « ce n'est pas X, c'est Y » / « it's not X, it's Y », les listes mécaniques de trois qualités et les transitions répétitives.
+- Bannir les amorces et clichés interchangeables tels que « C'est avec un grand intérêt », « Je me permets », « Fort de mon expérience », « mon profil correspond parfaitement », « véritable atout », « relever de nouveaux défis ».
+- Écris des phrases plutôt courtes et directes. Chaque affirmation importante doit être soutenue par un fait du dossier.
+- La lettre doit échouer au test de substitution : remplacer le nom de l'entreprise doit rendre au moins un passage incohérent ou incomplet.`;
 
 export async function generateCoverLetter(input: CoverLetterInput): Promise<string | null> {
   const languageInstruction = input.language === "EN" ? "Write entirely in English." : "Rédige entièrement en français.";
@@ -34,7 +41,7 @@ export async function generateCoverLetter(input: CoverLetterInput): Promise<stri
       [
         {
           role: "system",
-          content: `Tu réécris un brouillon de lettre de motivation existant selon une instruction précise. ${GROUNDING_RULE} ${languageInstruction} Ne signe pas la lettre. Réponds uniquement avec le texte de la lettre.`,
+          content: `Tu réécris un brouillon de lettre de motivation existant selon une instruction précise. ${GROUNDING_RULE} ${NATURAL_STYLE_RULES} ${languageInstruction} Ne signe pas la lettre. Réponds uniquement avec le texte de la lettre.`,
         },
         {
           role: "user",
@@ -56,7 +63,8 @@ Compétences du candidat qui correspondent à l'offre : ${input.matchedSkills.jo
 Profil du candidat : ${input.profileSummary}
 
 ${GROUNDING_RULE}
-Choisis au maximum deux preuves concrètes et pertinentes dans les expériences ou projets du dossier. Relie chacune à un besoin explicite de l'offre. Évite les généralités interchangeables et n'énumère pas simplement des technologies.
+${NATURAL_STYLE_RULES}
+Choisis au maximum trois preuves concrètes. Commence par les missions professionnelles réellement pertinentes, en reprenant leurs détails et leur contexte, puis utilise un projet personnel seulement s'il apporte une preuve complémentaire. Relie chaque preuve à un besoin explicite de l'offre. Ne force jamais une expérience non pertinente et n'énumère pas simplement des technologies.
 Ne signe pas la lettre (pas de formule de politesse finale + nom). C'est un premier brouillon que le candidat va personnaliser ensuite.`;
 
   return aiChat(

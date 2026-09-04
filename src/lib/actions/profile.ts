@@ -111,6 +111,19 @@ export async function updateProfile(raw: ProfileInput) {
   revalidatePath("/discover");
 }
 
+/** Adds one user-confirmed skill without replacing the rest of the profile. */
+export async function addSkillToProfile(rawSkill: string) {
+  const skill = z.string().trim().min(1).max(80).parse(rawSkill);
+  const profile = await getOrCreateProfileRow();
+  const current = JSON.parse(profile.skills ?? "[]") as string[];
+  const skills = normalizeSkillList([...current, skill]);
+  await prisma.profile.update({ where: { id: "singleton" }, data: { skills: JSON.stringify(skills) } });
+  await recomputeAllLocalScores();
+  revalidatePath("/", "layout");
+  revalidatePath("/profile");
+  return skills;
+}
+
 // --- CV upload & parsing --------------------------------------------------
 
 export type CvParsePreview = {

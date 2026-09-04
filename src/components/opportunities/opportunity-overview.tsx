@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import type { Application, Company, Country, City } from "@prisma/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -58,10 +58,18 @@ export function OpportunityOverview({ application }: { application: ApplicationD
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Aperçu</CardTitle>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5">
+          <div>
+            <p className="text-base font-semibold text-foreground">Informations</p>
+            <p className="text-sm text-muted-foreground">
+              {[application.city?.name, application.country?.name, application.source].filter(Boolean).join(" · ") || "Informations essentielles de l’opportunité"}
+            </p>
+          </div>
+          <span className="text-xs font-medium text-primary group-open:hidden">Modifier</span>
+          <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Fermer</span>
+        </summary>
+      <CardContent className="grid grid-cols-1 gap-3 border-t border-border pt-5 sm:grid-cols-2">
         <Field label="Poste">
           <Input value={fields.title} onChange={(e) => update("title", e.target.value)} />
         </Field>
@@ -116,6 +124,7 @@ export function OpportunityOverview({ application }: { application: ApplicationD
           </Button>
         </div>
       </CardContent>
+      </details>
     </Card>
   );
 }

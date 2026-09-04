@@ -32,12 +32,14 @@ const STEP_TITLES: Record<string, string> = {
  */
 export function JobImportWidget({
   presentation = "dialog",
+  initialMode = "link",
   onDone,
 }: {
   presentation?: "dialog" | "inline";
+  initialMode?: "link" | "description";
   onDone?: (applicationId: string) => void;
 }) {
-  const flow = useJobImportFlow(onDone);
+  const flow = useJobImportFlow(onDone, initialMode, () => onDone?.(""));
 
   const content = (
     <>
@@ -50,8 +52,8 @@ export function JobImportWidget({
   if (presentation === "inline") {
     return (
       <div className="flex flex-col gap-4">
-        <JobImportEntryStep flow={flow} />
-        {flow.step !== "idle" && content}
+        {initialMode === "link" && <JobImportEntryStep flow={flow} />}
+        {(flow.step !== "idle" || initialMode === "description") && content}
       </div>
     );
   }

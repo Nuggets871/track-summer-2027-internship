@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2, ExternalLink, Bookmark, Send, ClipboardCheck, ArrowLeft } from "lucide-react";
+import { Loader2, ExternalLink, Bookmark, Send, ClipboardCheck, ArrowLeft, ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,10 +49,13 @@ export function JobImportAnalyzingStep() {
 export function JobImportPasteFallbackStep({ flow }: { flow: JobImportFlow }) {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm font-medium text-foreground">Impossible de lire automatiquement cette page.</p>
+      <p className="text-sm font-medium text-foreground">
+        {flow.initialMode === "description" ? "Colle la description de l’offre." : "Impossible de lire automatiquement cette page."}
+      </p>
       <p className="text-sm text-muted-foreground">
-        Certains sites (LinkedIn notamment) bloquent la récupération automatique. Collez la description de l&apos;offre
-        ci-dessous — le reste du traitement (extraction, score, sauvegarde) fonctionne exactement pareil.
+        {flow.initialMode === "description"
+          ? "Le texte sera extrait puis comparé à ton profil. Rien ne sera enregistré avant ta validation."
+          : "Certains sites, dont LinkedIn, bloquent la lecture automatique. Colle la description ci-dessous pour poursuivre."}
       </p>
       <Textarea
         rows={10}
@@ -128,11 +131,16 @@ export function JobImportReviewStep({ flow }: { flow: JobImportFlow }) {
         </div>
       )}
 
-      <MatchScoreCard match={payload.match} eligibility={payload.eligibility} />
+      <MatchScoreCard match={payload.match} eligibility={payload.eligibility} onConfirmSkill={flow.confirmSkill} pending={flow.pending} />
 
-      <div>
+      <details className="group rounded-lg border border-border p-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-foreground">
+          Corriger les informations extraites
+          <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="mt-4">
         <div className="mb-2 flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-foreground">Voici ce que nous avons détecté</h4>
+          <h4 className="text-sm font-semibold text-foreground">Informations détectées</h4>
           <span className="text-xs text-subtle-foreground">{labelFor(EXTRACTION_METHODS, payload.extracted.extractionMethod)}</span>
         </div>
         <FormSection title="Poste">
@@ -212,17 +220,21 @@ export function JobImportReviewStep({ flow }: { flow: JobImportFlow }) {
             <ExternalLink className="size-3.5" /> Voir l&apos;annonce originale
           </a>
         )}
-      </div>
+        </div>
+      </details>
 
       <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+        <Button variant="ghost" onClick={flow.dismiss} disabled={flow.pending}>
+          <X /> Ignorer
+        </Button>
         <Button variant="outline" onClick={() => flow.save("SAVE_LATER")} disabled={flow.pending}>
-          <Bookmark /> Save for later
+          <Bookmark /> Sauvegarder
         </Button>
         <Button variant="secondary" onClick={() => flow.save("ALREADY_APPLIED")} disabled={flow.pending}>
-          <ClipboardCheck /> I already applied
+          <ClipboardCheck /> Déjà candidaté
         </Button>
         <Button onClick={() => flow.save("PREPARE")} disabled={flow.pending}>
-          Prepare application
+          Préparer
         </Button>
       </div>
     </div>

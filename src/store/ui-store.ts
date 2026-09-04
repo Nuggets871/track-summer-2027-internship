@@ -13,7 +13,8 @@ type UIState = {
   // The single "+ Add" entry point: paste a job URL/description. There is
   // deliberately only one thing to create from anywhere in the app.
   addOpportunityOpen: boolean;
-  openAddOpportunity: () => void;
+  addOpportunityMode: "link" | "description" | "spontaneous";
+  openAddOpportunity: (mode?: "link" | "description" | "spontaneous") => void;
   closeAddOpportunity: () => void;
 };
 
@@ -27,7 +28,8 @@ export const useUIStore = create<UIState>()(
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
 
       addOpportunityOpen: false,
-      openAddOpportunity: () => set({ addOpportunityOpen: true }),
+      addOpportunityMode: "link",
+      openAddOpportunity: (mode = "link") => set({ addOpportunityOpen: true, addOpportunityMode: mode }),
       closeAddOpportunity: () => set({ addOpportunityOpen: false }),
     }),
     { name: "internship-tracker-ui", partialize: (s) => ({ sidebarCollapsed: s.sidebarCollapsed }) },

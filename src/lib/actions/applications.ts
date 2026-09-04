@@ -131,3 +131,59 @@ export async function deleteApplication(id: string) {
   await prisma.application.delete({ where: { id } });
   revalidateApplicationPaths();
 }
+
+const spontaneousApplicationSchema = z.object({
+  companyName: z.string().trim().min(1, "L'entreprise est requise"),
+  targetRole: z.string().trim().min(1, "Précisez le rôle ou domaine visé"),
+  channel: z.enum(["EMAIL", "LINKEDIN", "WEBSITE", "CONTACT", "OTHER"]),
+  recipientName: z.preprocess(emptyToNull, z.string().trim().nullable().optional()),
+  recipientValue: z.preprocess(emptyToNull, z.string().trim().nullable().optional()),
+  companyResearch: z.preprocess(emptyToNull, z.string().trim().nullable().optional()),
+  notes: z.preprocess(emptyToNull, z.string().trim().nullable().optional()),
+  availability: z.preprocess(emptyToNull, z.string().trim().nullable().optional()),
+  action: z.enum(["PREPARE", "ALREADY_APPLIED"]),
+});
+
+export type SpontaneousApplicationInput = z.infer<typeof spontaneousApplicationSchema>;
+
+/** Creates a lightweight prospect without inventing a job description or a
+ * compatibility percentage. The preparation workspace will instead use the
+ * user's company research, target role and channel to build a grounded angle. */
+export async function createSpontaneousApplication(raw: SpontaneousApplicationInput) {
+  const data = spontaneousApplicationSchema.parse(raw);
+  const [stages, company] = await Promise.all([
+    ensureApplicationPipelineStages(),
+    prisma.company.findFirst({ where: { name: data.companyName } }),
+  ]);
+  const companyRow = company ?? (await prisma.company.create({ data: { name: data.companyName } }));
+  const sent = data.action === "ALREADY_APPLIED";
+  const stage = stages.find((item) => item.key === (sent ? "APPLIED" : "PREPARING"));
+  if (!stage) throw new Error("Statut de candidature introuvable");
+
+  const now = new Date();
+  const followUpAt = sent ? new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000) : null;
+  const application = await prisma.application.create({
+    data: {
+      title: data.targetRole,
+      targetRole: data.targetRole,
+      companyId: companyRow.id,
+      statusId: stage.id,
+      applicationType: "SPONTANEOUS",
+      outreachChannel: data.channel,
+      recipientName: data.recipientName,
+      recipientValue: data.recipientValue,
+      companyResearch: data.companyResearch,
+      notes: [data.notes, data.availability ? `Disponibilité : ${data.availability}` : null].filter(Boolean).join("\n\n") || null,
+      source: "Candidature spontanée",
+      discoveredAt: now,
+      appliedAt: sent ? now : null,
+      contactedAt: sent ? now : null,
+      followUpAt,
+      nextAction: sent ? "Relancer si aucune réponse" : "Préparer le message de prise de contact",
+      nextActionDate: followUpAt,
+    },
+  });
+
+  revalidateApplicationPaths(application.id);
+  return application;
+}

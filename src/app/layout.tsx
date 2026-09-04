@@ -20,8 +20,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Summer 2027 Internship Tracker",
-  description: "Suivi personnel de recherche de stage à l'étranger — été 2027",
+  title: "Stage Copilot",
+  description: "Analyse et suivi personnel de candidatures",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

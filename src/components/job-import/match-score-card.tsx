@@ -1,5 +1,6 @@
-import { CheckCircle2, AlertTriangle, XCircle, Sparkles } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, Sparkles, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { colorFor, labelFor, matchLabel, ELIGIBILITY_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -25,17 +26,30 @@ function scoreColor(score: number) {
   return "#f87171";
 }
 
-export function MatchScoreCard({ match, eligibility }: { match: MatchScoreCardData; eligibility: EligibilityCardData }) {
+function verdict(score: number, eligibilityStatus: string, evidenceCount: number) {
+  if (evidenceCount === 0) return "Compatibilité à confirmer";
+  if (eligibilityStatus === "POSSIBLY_NOT_ELIGIBLE") return "Blocage possible";
+  if (score >= 75) return "Compatibilité forte";
+  if (score >= 55) return "Candidature plausible";
+  return "Candidature ambitieuse";
+}
+
+export function MatchScoreCard({ match, eligibility, onConfirmSkill, pending = false }: {
+  match: MatchScoreCardData;
+  eligibility: EligibilityCardData;
+  onConfirmSkill?: (skill: string) => void;
+  pending?: boolean;
+}) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-muted/40 p-4">
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-center">
-            <span className="text-3xl font-semibold tabular-nums text-foreground">{match.total}%</span>
-            <span className="text-xs text-muted-foreground">Match avec ton profil</span>
+            <span className="text-lg font-semibold text-foreground">{verdict(match.total, eligibility.status, match.factors.length)}</span>
+            <span className="text-xs text-muted-foreground">{match.factors.length ? `Estimation : ${match.total}%` : "Données insuffisantes"}</span>
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground">{matchLabel(match.total)}</p>
+            <p className="text-sm font-medium text-foreground">{match.factors.length ? `${matchLabel(match.total)} · à vérifier` : "Aucun signal explicite"}</p>
             <Badge
               variant="outline"
               dotColor={colorFor(ELIGIBILITY_STATUSES, eligibility.status)}
@@ -45,10 +59,10 @@ export function MatchScoreCard({ match, eligibility }: { match: MatchScoreCardDa
             </Badge>
           </div>
         </div>
-        <Progress value={match.total} className="w-full max-w-[160px]" color={scoreColor(match.total)} />
+        {match.factors.length > 0 && <Progress value={match.total} className="w-full max-w-[160px]" color={scoreColor(match.total)} />}
       </div>
 
-      <div>
+      {match.factors.length > 0 && <div>
         <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pourquoi ce score ?</h4>
         <div className="flex flex-col gap-2">
           {match.factors.map((f) => (
@@ -61,7 +75,7 @@ export function MatchScoreCard({ match, eligibility }: { match: MatchScoreCardDa
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
       {(match.strengths.length > 0 || match.watchouts.length > 0) && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -96,12 +110,18 @@ export function MatchScoreCard({ match, eligibility }: { match: MatchScoreCardDa
 
       {match.missingSkills.length > 0 && (
         <div>
-          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Compétences manquantes</h4>
+          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Non trouvées dans ton profil</h4>
+          <p className="mb-2 text-xs text-muted-foreground">Si tu maîtrises réellement une technologie, ajoute-la sans quitter l’analyse.</p>
           <div className="flex flex-wrap gap-1.5">
             {match.missingSkills.map((s) => (
-              <Badge key={s} variant="danger">
-                {s}
-              </Badge>
+              <div key={s} className="flex items-center rounded-md border border-danger/30 bg-danger-soft">
+                <Badge variant="danger" className="border-0 bg-transparent">{s}</Badge>
+                {onConfirmSkill && (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 px-2" disabled={pending} onClick={() => onConfirmSkill(s)}>
+                    <Plus className="size-3" /> Je l&apos;ai
+                  </Button>
+                )}
+              </div>
             ))}
           </div>
         </div>

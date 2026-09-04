@@ -174,20 +174,24 @@ export function computeJobMatch(
     preferencesScore = 35;
   }
 
-  const rawFactors: Omit<ScoreFactor, "contribution">[] = [
-    { key: "skills", label: "Compétences", value: skillsScore, weight: weights.skills },
-    { key: "experience", label: "Expérience", value: experienceScore, weight: weights.experience },
-    { key: "education", label: "Formation", value: educationScore, weight: weights.education },
-    { key: "languages", label: "Langues", value: languagesScore, weight: weights.languages },
-    { key: "location", label: "Localisation / disponibilité", value: locationScore, weight: weights.location },
-    { key: "preferences", label: "Préférences personnelles", value: preferencesScore, weight: weights.preferences },
-  ];
+  // Unknown requirements must not silently become positive evidence. Only
+  // dimensions for which the posting gives us something concrete contribute
+  // to the estimate; this avoids a precise-looking score built from defaults.
+  const rawFactors: Omit<ScoreFactor, "contribution">[] = [];
+  if (job.requiredSkills.length > 0) rawFactors.push({ key: "skills", label: "Compétences", value: skillsScore, weight: weights.skills });
+  if (job.requiredExperienceYears !== null) rawFactors.push({ key: "experience", label: "Expérience", value: experienceScore, weight: weights.experience });
+  if (job.requiredEducationLevel !== null) rawFactors.push({ key: "education", label: "Formation", value: educationScore, weight: weights.education });
+  if (job.requiredLanguages.length > 0) rawFactors.push({ key: "languages", label: "Langues", value: languagesScore, weight: weights.languages });
+  if (job.remoteType !== null || job.countryName !== null) rawFactors.push({ key: "location", label: "Localisation / disponibilité", value: locationScore, weight: weights.location });
+  if (job.sector && context.preferredSectors.length > 0) rawFactors.push({ key: "preferences", label: "Préférences personnelles", value: preferencesScore, weight: weights.preferences });
   const factors: ScoreFactor[] = rawFactors.map((f) => ({ ...f, contribution: (f.value * f.weight) / 100 }));
   const totalWeight = rawFactors.reduce((s, f) => s + f.weight, 0) || 1;
   const total = clamp((factors.reduce((s, f) => s + f.contribution, 0) / totalWeight) * 100, 0, 100);
   const roundedTotal = Math.round(total);
 
-  const recommendation = buildRecommendation(roundedTotal);
+  const recommendation = rawFactors.length === 0
+    ? "L'annonce ne contient pas assez d'exigences explicites pour estimer la compatibilité. Vérifie le texte avant de décider."
+    : buildRecommendation(roundedTotal);
 
   return { total: roundedTotal, factors, strengths, watchouts, missingSkills, recommendation };
 }
@@ -241,7 +245,7 @@ export function computeEligibility(profile: ProfileForMatching, job: JobForMatch
       hasUncertainty = true;
     } else if (profileEduRank < requiredEduRank) {
       const label = EDUCATION_LEVELS[requiredEduRank]?.label ?? job.requiredEducationLevel;
-      notes.push(`Attention : l'offre demande un niveau "${label}", en dessous de ton profil actuel.`);
+      notes.push(`Attention : l'offre demande un niveau "${label}", supérieur à ton niveau actuel.`);
       hasConcern = true;
     }
   }

@@ -9,6 +9,7 @@ import {
   saveAnalyzedOpportunity,
   type JobAnalysisPayload,
 } from "@/lib/actions/job-import";
+import { addSkillToProfile } from "@/lib/actions/profile";
 import type { ExtractedJobData } from "@/lib/job-extraction";
 
 export type FlowStep = "idle" | "analyzing" | "paste_fallback" | "review" | "already_applied";
@@ -43,9 +44,13 @@ function toReviewFields(extracted: ExtractedJobData): ReviewFields {
   };
 }
 
-export function useJobImportFlow(onDone?: (applicationId: string) => void) {
+export function useJobImportFlow(
+  onDone?: (applicationId: string) => void,
+  initialMode: "link" | "description" = "link",
+  onDismiss?: () => void,
+) {
   const router = useRouter();
-  const [step, setStep] = useState<FlowStep>("idle");
+  const [step, setStep] = useState<FlowStep>(initialMode === "description" ? "paste_fallback" : "idle");
   const [pending, startTransition] = useTransition();
   const [url, setUrl] = useState("");
   const [pastedText, setPastedText] = useState("");
@@ -100,6 +105,25 @@ export function useJobImportFlow(onDone?: (applicationId: string) => void) {
       setFields(toReviewFields(outcome.data.extracted));
       setStep("review");
     });
+  };
+
+  const confirmSkill = (skill: string) => {
+    if (!payload) return;
+    startTransition(async () => {
+      try {
+        await addSkillToProfile(skill);
+        const refreshed = await analyzeJobText(payload.extracted.rawText, url.trim() || undefined);
+        if (refreshed.ok) setPayload(refreshed.data);
+        toast.success(`${skill} ajouté à ton profil et compatibilité recalculée`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Impossible d'ajouter cette compétence");
+      }
+    });
+  };
+
+  const dismiss = () => {
+    reset();
+    onDismiss?.();
   };
 
   const updateField = <K extends keyof ReviewFields>(key: K, value: ReviewFields[K]) => {
@@ -175,6 +199,7 @@ export function useJobImportFlow(onDone?: (applicationId: string) => void) {
 
   return {
     step,
+    initialMode,
     pending,
     url,
     setUrl,
@@ -195,8 +220,10 @@ export function useJobImportFlow(onDone?: (applicationId: string) => void) {
     setApplicationNote,
     submitUrl,
     submitPastedText,
+    confirmSkill,
     save,
     reset,
+    dismiss,
     setStep,
   };
 }

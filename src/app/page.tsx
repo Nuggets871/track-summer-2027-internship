@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowUpRight, Sparkles, ClipboardList, Bell } from "lucide-react";
-import { JobImportWidget } from "@/components/job-import/job-import-widget";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -25,10 +24,8 @@ export default async function HomePage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Bonjour 👋</h1>
-        <p className="text-sm text-muted-foreground">Colle le lien d&apos;une offre pour commencer — le reste suit.</p>
+        <p className="text-sm text-muted-foreground">Retrouve les opportunités qui méritent ton attention et leur prochaine action.</p>
       </div>
-
-      <JobImportWidget />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -42,7 +39,7 @@ export default async function HomePage() {
             {topMatches.length === 0 ? (
               <EmptyState
                 title="Aucune analyse pour l'instant"
-                description="Colle le lien d'une offre ci-dessus pour obtenir ton premier match score."
+                description="Utilise le bouton Ajouter pour analyser ta première offre."
               />
             ) : (
               <div className="flex flex-col divide-y divide-border">

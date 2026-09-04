@@ -45,6 +45,11 @@ export async function exportFullBackup() {
     // @ts-expect-error - dynamic model access, all keys are valid Prisma delegates
     data[model] = await prisma[model].findMany();
   }
+  // API keys are credentials, not portable user data. Never place them in
+  // a downloadable backup that may be shared or stored in the cloud.
+  if (Array.isArray(data.setting)) {
+    data.setting = data.setting.map((row) => ({ ...(row as Record<string, unknown>), deepseekApiKey: null }));
+  }
   return JSON.stringify(data, null, 2);
 }
 
@@ -55,6 +60,7 @@ export async function exportFullBackup() {
  */
 export async function importFullBackup(jsonText: string) {
   const parsed = JSON.parse(jsonText);
+  const currentSecret = await prisma.setting.findUnique({ where: { id: "singleton" }, select: { deepseekApiKey: true } });
 
   await prisma.$transaction(async (tx) => {
     // Delete in dependency order (children first).
@@ -71,6 +77,8 @@ export async function importFullBackup(jsonText: string) {
       for (const row of rows) {
         const cleaned = reviveDates(row);
         if (model === "setting") {
+          // A backup cannot overwrite or erase the locally configured key.
+          delete cleaned.deepseekApiKey;
           await tx.setting.upsert({ where: { id: cleaned.id }, create: cleaned, update: cleaned });
         } else if (model === "profile") {
           await tx.profile.upsert({ where: { id: cleaned.id }, create: cleaned, update: cleaned });
@@ -81,6 +89,10 @@ export async function importFullBackup(jsonText: string) {
       }
     }
   });
+
+  if (currentSecret?.deepseekApiKey) {
+    await prisma.setting.update({ where: { id: "singleton" }, data: { deepseekApiKey: currentSecret.deepseekApiKey } });
+  }
 
   revalidatePath("/", "layout");
 }

@@ -1,10 +1,6 @@
-import { getSettings } from "@/lib/data/settings";
 import { getAiKeyStatus } from "@/lib/actions/ai-settings";
 import { getJobSources } from "@/lib/data/discover";
-import { prisma } from "@/lib/prisma";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GeneralSettingsForm } from "@/components/settings/general-settings-form";
-import { MatchingSettingsForm } from "@/components/settings/matching-settings-form";
 import { AiSettingsForm } from "@/components/settings/ai-settings-form";
 import { JobSourcesSettings } from "@/components/settings/job-sources-settings";
 import { DataBackupPanel } from "@/components/settings/data-backup-panel";
@@ -13,10 +9,8 @@ import { ThemeSettingsCard } from "@/components/settings/theme-settings-card";
 export const metadata = { title: "Paramètres" };
 
 export default async function SettingsPage() {
-  const [settings, aiStatus, countries, jobSources] = await Promise.all([
-    getSettings(),
+  const [aiStatus, jobSources] = await Promise.all([
     getAiKeyStatus(),
-    prisma.country.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
     getJobSources(),
   ]);
 
@@ -24,29 +18,21 @@ export default async function SettingsPage() {
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-xl font-semibold text-foreground">Paramètres</h1>
-        <p className="text-sm text-muted-foreground">Personnalisez l&apos;application selon votre recherche.</p>
+        <p className="text-sm text-muted-foreground">Configure les sources, l’IA, l’apparence et la protection de tes données. Ton dossier candidat reste dans Profil.</p>
       </div>
 
-      <Tabs defaultValue="general">
+      <Tabs defaultValue="ai">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="general">Général</TabsTrigger>
-          <TabsTrigger value="sources">Sources</TabsTrigger>
           <TabsTrigger value="ai">IA</TabsTrigger>
-          <TabsTrigger value="matching">Matching</TabsTrigger>
+          <TabsTrigger value="sources">Sources</TabsTrigger>
           <TabsTrigger value="appearance">Apparence</TabsTrigger>
-          <TabsTrigger value="data">Données & backup</TabsTrigger>
+          <TabsTrigger value="data">Confidentialité & données</TabsTrigger>
         </TabsList>
-        <TabsContent value="general">
-          <GeneralSettingsForm settings={settings} countryOptions={countries} />
-        </TabsContent>
-        <TabsContent value="sources">
-          <JobSourcesSettings sources={jobSources} />
-        </TabsContent>
         <TabsContent value="ai">
           <AiSettingsForm status={aiStatus} />
         </TabsContent>
-        <TabsContent value="matching">
-          <MatchingSettingsForm matchWeights={settings.matchWeights} />
+        <TabsContent value="sources">
+          <JobSourcesSettings sources={jobSources} />
         </TabsContent>
         <TabsContent value="appearance">
           <ThemeSettingsCard />

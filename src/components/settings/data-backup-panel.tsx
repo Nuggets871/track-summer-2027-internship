@@ -59,7 +59,9 @@ export function DataBackupPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Backup complet</CardTitle>
-          <CardDescription>Exportez ou restaurez l&apos;intégralité de vos données au format JSON.</CardDescription>
+          <CardDescription>
+            Exporte ou restaure tes données au format JSON. La clé API IA n&apos;est jamais incluse dans le fichier et une importation ne la remplace pas.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={handleExport} disabled={pending}>
@@ -87,13 +89,13 @@ export function DataBackupPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Export CSV des candidatures</CardTitle>
-          <CardDescription>Disponible directement depuis la page Tracker (bouton Exporter / Importer).</CardDescription>
+          <CardDescription>Disponible directement depuis la page Opportunités.</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <DatabaseBackup className="size-4" /> Rendez-vous sur la page{" "}
-            <Link href="/applications" className="text-primary hover:underline">
-              Candidatures
+            <Link href="/opportunities" className="text-primary hover:underline">
+              Opportunités
             </Link>{" "}
             pour l&apos;export/import CSV.
           </p>

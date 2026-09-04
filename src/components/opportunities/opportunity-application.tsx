@@ -3,19 +3,20 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import type { Application, CoverLetter } from "@prisma/client";
+import type { Application, Company, CoverLetter } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles, Link2, Check, ChevronDown } from "lucide-react";
+import { FileText, Sparkles, Link2, Check, ChevronDown, ExternalLink, Undo2, AlertTriangle } from "lucide-react";
 import { updateApplication } from "@/lib/actions/applications";
-import { generateCoverLetterForApplication, refineCoverLetter, saveCoverLetterContent } from "@/lib/actions/ai-actions";
+import { generateCoverLetterForApplication, generateSpontaneousMessage, refineCoverLetter, restorePreviousCoverLetter, saveCoverLetterContent, saveSpontaneousMessage } from "@/lib/actions/ai-actions";
 import type { AppProfile } from "@/lib/data/profile";
 import { cn } from "@/lib/utils";
+import { inspectCoverLetterStyle } from "@/lib/ai/cover-letter-style";
 
-type ApplicationDetail = Application & { coverLetter: CoverLetter | null };
+type ApplicationDetail = Application & { company: Company; coverLetter: CoverLetter | null };
 
 const TONES = [
   { value: "PROFESSIONAL", label: "Professionnel" },
@@ -69,18 +70,14 @@ function LinkChip({ label, url, color }: { label: string; url: string; color: Li
   };
 
   return (
-    <button
-      type="button"
-      onClick={copy}
-      title={`Copier le lien ${label}`}
-      className={cn(
-        "flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-all duration-200 ease-out",
-        copied ? "scale-105 border-success/40 bg-success-soft text-success-foreground" : LINK_COLOR_STYLES[color],
-      )}
-    >
-      {copied ? <Check className="size-3.5" /> : <Link2 className="size-3.5" />}
-      {label}
-    </button>
+    <div className={cn("flex min-w-44 items-center justify-between rounded-lg border p-2 transition-colors", LINK_COLOR_STYLES[color])}>
+      <button type="button" onClick={copy} title={`Copier le lien ${label}`} className="flex flex-1 items-center gap-2 px-1.5 py-1 text-sm font-semibold">
+        {copied ? <Check className="size-4" /> : <Link2 className="size-4" />} {copied ? "Copié" : label}
+      </button>
+      <a href={url} target="_blank" rel="noreferrer" aria-label={`Ouvrir ${label}`} className="rounded-md p-1.5 hover:bg-background/40">
+        <ExternalLink className="size-4" />
+      </a>
+    </div>
   );
 }
 
@@ -101,6 +98,9 @@ export function OpportunityApplication({ application, profile }: { application: 
   const [tone, setTone] = useState<(typeof TONES)[number]["value"]>((application.coverLetter?.tone as never) ?? "PROFESSIONAL");
   const [language, setLanguage] = useState<"FR" | "EN">((application.coverLetter?.language as "FR" | "EN") ?? "FR");
   const [letterContent, setLetterContent] = useState(application.coverLetter?.content ?? "");
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [messageDraft, setMessageDraft] = useState(application.messageDraft ?? "");
+  const styleWarnings = inspectCoverLetterStyle(letterContent, application.applicationType === "SPONTANEOUS" ? application.companyResearch ? application.company.name : undefined : application.company.name);
 
   const saveTracking = () => {
     startTransition(async () => {
@@ -141,6 +141,18 @@ export function OpportunityApplication({ application, profile }: { application: 
     });
   };
 
+  const restorePrevious = () => {
+    startLetterTransition(async () => {
+      try {
+        const letter = await restorePreviousCoverLetter(application.id);
+        setLetterContent(letter.content ?? "");
+        toast.success("Version précédente restaurée");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Aucune version précédente");
+      }
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -149,8 +161,7 @@ export function OpportunityApplication({ application, profile }: { application: 
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         {profile.linkedinUrl || profile.githubUrl || profile.portfolioUrl ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Liens rapides :</span>
+          <div className="grid gap-2 sm:grid-cols-3">
             {profile.linkedinUrl && <LinkChip label="LinkedIn" url={profile.linkedinUrl} color="linkedin" />}
             {profile.githubUrl && <LinkChip label="GitHub" url={profile.githubUrl} color="github" />}
             {profile.portfolioUrl && <LinkChip label="Portfolio" url={profile.portfolioUrl} color="portfolio" />}
@@ -245,6 +256,23 @@ export function OpportunityApplication({ application, profile }: { application: 
           {letterContent && (
             <>
               <Textarea rows={10} value={letterContent} onChange={(e) => setLetterContent(e.target.value)} />
+              {styleWarnings.length > 0 && (
+                <div className="rounded-md border border-warning/35 bg-warning-soft/40 p-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-foreground">
+                    <AlertTriangle className="size-3.5 text-warning" /> Contrôle de naturel
+                  </p>
+                  <ul className="space-y-1 text-xs text-muted-foreground">
+                    {styleWarnings.map((warning) => <li key={warning.id}><strong className="text-foreground">{warning.label} :</strong> {warning.detail}</li>)}
+                  </ul>
+                  <p className="mt-2 text-[11px] text-subtle-foreground">Ce contrôle signale des habitudes de style. Il ne prétend pas détecter si un texte vient d’une IA.</p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input value={refineInstruction} onChange={(e) => setRefineInstruction(e.target.value)} onKeyDown={(e) => {
+                  if (e.key === "Enter" && refineInstruction.trim()) { e.preventDefault(); refine(refineInstruction); setRefineInstruction(""); }
+                }} placeholder="Demande une modification précise…" />
+                <Button size="sm" disabled={letterPending || !refineInstruction.trim()} onClick={() => { refine(refineInstruction); setRefineInstruction(""); }}>Envoyer</Button>
+              </div>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap gap-1.5">
                   {REFINE_ACTIONS.map((a) => (
@@ -256,10 +284,37 @@ export function OpportunityApplication({ application, profile }: { application: 
                 <Button size="sm" variant="secondary" onClick={saveLetter} disabled={letterPending}>
                   Enregistrer la lettre
                 </Button>
+                <Button size="sm" variant="ghost" onClick={restorePrevious} disabled={letterPending}>
+                  <Undo2 className="size-3.5" /> Annuler la dernière version
+                </Button>
               </div>
             </>
           )}
         </div>
+
+        {application.applicationType === "SPONTANEOUS" && (
+          <div className="flex flex-col gap-3 border-t border-border pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-sm font-medium text-foreground">Message de prise de contact</h4>
+                <p className="text-xs text-muted-foreground">Adapté au canal {application.outreachChannel?.toLowerCase() ?? "choisi"}, à copier puis envoyer toi-même.</p>
+              </div>
+              <Button size="sm" onClick={() => startLetterTransition(async () => {
+                try { const content = await generateSpontaneousMessage(application.id); setMessageDraft(content); }
+                catch (error) { toast.error(error instanceof Error ? error.message : "Erreur"); }
+              })} disabled={letterPending}><Sparkles className="size-3.5" /> Générer</Button>
+            </div>
+            {messageDraft && (
+              <>
+                <Textarea rows={7} value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} />
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(messageDraft).then(() => toast.success("Message copié"))}>Copier</Button>
+                  <Button size="sm" variant="secondary" onClick={() => startLetterTransition(async () => { await saveSpontaneousMessage(application.id, messageDraft); toast.success("Message enregistré"); })}>Enregistrer</Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
