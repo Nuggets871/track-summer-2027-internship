@@ -34,7 +34,9 @@ export type ExtractedJobData = {
   salaryAmount: number | null;
   salaryCurrency: string | null;
   durationMonths: number | null;
+  durationWeeks: number | null;
   startDate: string | null;
+  endDate: string | null;
   deadline: string | null;
   contractType: string | null;
   extractionMethod: "STRUCTURED_DATA" | "AI_ENHANCED" | "HEURISTIC" | "MANUAL_PASTE";
@@ -57,7 +59,9 @@ const EMPTY: Omit<ExtractedJobData, "extractionMethod" | "rawText"> = {
   salaryAmount: null,
   salaryCurrency: null,
   durationMonths: null,
+  durationWeeks: null,
   startDate: null,
+  endDate: null,
   deadline: null,
   contractType: null,
 };
@@ -345,6 +349,38 @@ function detectDuration(text: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
+function detectDurationWeeks(text: string): number | null {
+  const match = text.match(/(\d{1,3})\s*(?:-\s*\d{1,3}\s*)?(?:weeks?|semaines?)/i);
+  return match ? Number(match[1]) : null;
+}
+
+const ENGLISH_MONTHS: Record<string, number> = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+};
+
+function toIsoDate(year: number, monthName: string, day: number) {
+  const month = ENGLISH_MONTHS[monthName.toLowerCase()];
+  if (!month || day < 1 || day > 31) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function detectRequiredDateWindow(text: string): { startDate: string | null; endDate: string | null } {
+  const months = Object.keys(ENGLISH_MONTHS).join("|");
+  const pattern = new RegExp(
+    `(?:available\\s+to\\s+)?(?:start|starting|begin|beginning)\\s+(?:on\\s+)?(${months})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?[^.\\n]{0,140}?(?:finish|ending?|through|until)\\s+(?:on\\s+)?(${months})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))`,
+    "i",
+  );
+  const match = text.match(pattern);
+  if (!match) return { startDate: null, endDate: null };
+  const endYear = Number(match[6]);
+  const startYear = match[3] ? Number(match[3]) : endYear;
+  return {
+    startDate: toIsoDate(startYear, match[1], Number(match[2])),
+    endDate: toIsoDate(endYear, match[4], Number(match[5])),
+  };
+}
+
 function detectDateNear(text: string, keywords: RegExp): string | null {
   const idx = text.search(keywords);
   if (idx === -1) return null;
@@ -379,6 +415,7 @@ function detectContractType(text: string): string | null {
 function extractHeuristics(text: string, titleHint: string | null): Partial<ExtractedJobData> {
   const responsibilities = findSection(text, ["Responsibilities", "Missions", "What you'll do", "Le poste"]);
   const qualifications = findSection(text, ["Qualifications", "Requirements", "Profil recherché", "Skills required", "Ce que nous recherchons"]);
+  const requiredWindow = detectRequiredDateWindow(text);
   return {
     title: titleHint,
     remoteType: detectRemoteType(text),
@@ -390,8 +427,10 @@ function extractHeuristics(text: string, titleHint: string | null): Partial<Extr
     requiredExperienceYears: detectExperienceYears(text),
     ...detectSalary(text),
     durationMonths: detectDuration(text),
+    durationWeeks: detectDurationWeeks(text),
     deadline: detectDateNear(text, /deadline|apply by|closing date|date limite|candidater avant/i),
-    startDate: detectDateNear(text, /start date|starting|d[ée]but (?:du|de la mission|souhait[ée])/i),
+    startDate: requiredWindow.startDate ?? detectDateNear(text, /start date|starting|d[ée]but (?:du|de la mission|souhait[ée])/i),
+    endDate: requiredWindow.endDate,
     contractType: detectContractType(text),
   };
 }

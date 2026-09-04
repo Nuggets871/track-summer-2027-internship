@@ -16,6 +16,10 @@ function makeProfile(overrides: Partial<ProfileForMatching> = {}): ProfileForMat
     ],
     workAuthorization: "Citoyen UE",
     availabilityNote: "Disponible été 2027",
+    availabilityStart: new Date("2027-06-14T00:00:00Z"),
+    availabilityEnd: new Date("2027-09-14T00:00:00Z"),
+    minDurationWeeks: null,
+    maxDurationWeeks: null,
     ...overrides,
   };
 }
@@ -30,6 +34,9 @@ function makeJob(overrides: Partial<JobForMatching> = {}): JobForMatching {
     remoteType: null,
     sector: "Finance",
     rawText: "",
+    requiredStartDate: null,
+    requiredEndDate: null,
+    durationWeeks: null,
     ...overrides,
   };
 }
@@ -127,5 +134,30 @@ describe("computeEligibility", () => {
   it("never claims certainty when education level can't be verified", () => {
     const result = computeEligibility(makeProfile({ educationLevel: null }), makeJob({ requiredEducationLevel: "MASTER" }));
     expect(result.status).not.toBe("LIKELY_ELIGIBLE");
+  });
+
+  it("treats a mandatory schedule outside the candidate window as blocking", () => {
+    const result = computeEligibility(makeProfile({ minDurationWeeks: 9 }), makeJob({
+      requiredStartDate: new Date("2027-01-15T00:00:00Z"),
+      requiredEndDate: new Date("2027-08-13T00:00:00Z"),
+      durationWeeks: 30,
+    }));
+    expect(result.status).toBe("POSSIBLY_NOT_ELIGIBLE");
+    expect(result.notes.some((note) => note.includes("Condition bloquante") && note.includes("2027-01-15"))).toBe(true);
+  });
+
+  it("accepts a schedule contained in the candidate window and duration bounds", () => {
+    const result = computeEligibility(makeProfile({ minDurationWeeks: 9, maxDurationWeeks: 12 }), makeJob({
+      requiredStartDate: new Date("2027-06-14T00:00:00Z"),
+      requiredEndDate: new Date("2027-08-20T00:00:00Z"),
+      durationWeeks: 10,
+    }));
+    expect(result.status).toBe("LIKELY_ELIGIBLE");
+  });
+
+  it("treats a duration below the personal minimum as blocking", () => {
+    const result = computeEligibility(makeProfile({ minDurationWeeks: 9 }), makeJob({ durationWeeks: 6 }));
+    expect(result.status).toBe("POSSIBLY_NOT_ELIGIBLE");
+    expect(result.notes.some((note) => note.includes("minimum de 9"))).toBe(true);
   });
 });

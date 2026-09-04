@@ -24,6 +24,7 @@ export type ReviewFields = {
   salaryCurrency: string;
   durationMonths: string;
   startDate: string;
+  endDate: string;
   deadline: string;
   notes: string;
 };
@@ -39,6 +40,7 @@ function toReviewFields(extracted: ExtractedJobData): ReviewFields {
     salaryCurrency: extracted.salaryCurrency ?? "EUR",
     durationMonths: extracted.durationMonths?.toString() ?? "",
     startDate: extracted.startDate ?? "",
+    endDate: extracted.endDate ?? "",
     deadline: extracted.deadline ?? "",
     notes: "",
   };
@@ -170,6 +172,9 @@ export function useJobImportFlow(
             requiredLanguages: payload.extracted.requiredLanguages,
             requiredEducationLevel: payload.extracted.requiredEducationLevel,
             requiredExperienceYears: payload.extracted.requiredExperienceYears,
+            requiredStartDate: fields.startDate ? new Date(`${fields.startDate}T00:00:00Z`) : null,
+            requiredEndDate: fields.endDate ? new Date(`${fields.endDate}T00:00:00Z`) : null,
+            requiredDurationWeeks: payload.extracted.durationWeeks ?? (payload.extracted.durationMonths ? Math.round(payload.extracted.durationMonths * 4.345) : null),
             contractType: payload.extracted.contractType,
             matchScore: payload.match.total,
             matchBreakdown: payload.match.factors,

@@ -627,6 +627,10 @@ model Profile {
   // Preferences / logistics
   workAuthorization String? // free-text personal note — NOT legal advice
   availabilityNote  String?
+  availabilityStart DateTime?
+  availabilityEnd   DateTime?
+  minDurationWeeks  Int?
+  maxDurationWeeks  Int?
 
   // CV — the source of truth the AI is grounded on. cvRawText is the
   // extracted plain text (kept even if the Document is later deleted), so
@@ -657,6 +661,9 @@ model JobAnalysis {
   requiredLanguages       String? // JSON array of strings
   requiredEducationLevel  String?
   requiredExperienceYears Int?
+  requiredStartDate       DateTime?
+  requiredEndDate         DateTime?
+  requiredDurationWeeks   Int?
   contractType            String?
 
   matchScore     Int? // 0-100

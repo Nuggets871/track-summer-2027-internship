@@ -37,6 +37,10 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
   );
   const [workAuthorization, setWorkAuthorization] = useState(profile.workAuthorization ?? "");
   const [availabilityNote, setAvailabilityNote] = useState(profile.availabilityNote ?? "");
+  const [availabilityStart, setAvailabilityStart] = useState(profile.availabilityStart?.toISOString().slice(0, 10) ?? "");
+  const [availabilityEnd, setAvailabilityEnd] = useState(profile.availabilityEnd?.toISOString().slice(0, 10) ?? "");
+  const [minDurationWeeks, setMinDurationWeeks] = useState(profile.minDurationWeeks?.toString() ?? "");
+  const [maxDurationWeeks, setMaxDurationWeeks] = useState(profile.maxDurationWeeks?.toString() ?? "");
 
   const save = () => {
     startTransition(async () => {
@@ -62,6 +66,10 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
         languages: languages.filter((l) => l.language.trim()),
         workAuthorization: workAuthorization || null,
         availabilityNote: availabilityNote || null,
+        availabilityStart: availabilityStart ? new Date(`${availabilityStart}T00:00:00`) : null,
+        availabilityEnd: availabilityEnd ? new Date(`${availabilityEnd}T00:00:00`) : null,
+        minDurationWeeks: minDurationWeeks ? Number(minDurationWeeks) : null,
+        maxDurationWeeks: maxDurationWeeks ? Number(maxDurationWeeks) : null,
       });
       toast.success("Profil enregistré");
     });
@@ -322,9 +330,24 @@ export function ProfileForm({ profile }: { profile: AppProfile }) {
           <Field label="Droit de travail / visa">
             <Textarea rows={2} value={workAuthorization} onChange={(e) => setWorkAuthorization(e.target.value)} placeholder="Ex : citoyen UE, droit de travailler sans visa dans l'UE..." />
           </Field>
-          <Field label="Disponibilité">
-            <Textarea rows={2} value={availabilityNote} onChange={(e) => setAvailabilityNote(e.target.value)} placeholder="Disponible été 2027, 3 à 6 mois..." />
+          <Field label="Notes de disponibilité">
+            <Textarea rows={2} value={availabilityNote} onChange={(e) => setAvailabilityNote(e.target.value)} placeholder="Contraintes ou précisions complémentaires..." />
           </Field>
+          <Field label="Disponible à partir du">
+            <Input type="date" value={availabilityStart} onChange={(e) => setAvailabilityStart(e.target.value)} />
+          </Field>
+          <Field label="Disponible jusqu’au">
+            <Input type="date" value={availabilityEnd} onChange={(e) => setAvailabilityEnd(e.target.value)} />
+          </Field>
+          <Field label="Durée minimale (semaines)">
+            <Input type="number" min={1} value={minDurationWeeks} onChange={(e) => setMinDurationWeeks(e.target.value)} placeholder="9" />
+          </Field>
+          <Field label="Durée maximale (semaines, facultatif)">
+            <Input type="number" min={1} value={maxDurationWeeks} onChange={(e) => setMaxDurationWeeks(e.target.value)} placeholder="Facultatif" />
+          </Field>
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            Ces valeurs sont des contraintes strictes : une offre dont les dates ou la durée sont incompatibles sera signalée comme bloquante.
+          </p>
         </CardContent>
       </Card>
 

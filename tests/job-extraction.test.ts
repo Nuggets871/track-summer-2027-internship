@@ -155,4 +155,12 @@ describe("extractJobPostingFromText — manual paste fallback", () => {
     expect(result.requiredEducationLevel).toBeNull();
     expect(result.rawText).not.toContain("&#x20;");
   });
+
+  it("extracts a mandatory date window with a shared trailing year", () => {
+    const result = extractJobPostingFromText(
+      "**Duration:&#x20;**&#x53;tudents must be available to start on January 15th and finish August 13th 2027",
+    );
+    expect(result.startDate).toBe("2027-01-15");
+    expect(result.endDate).toBe("2027-08-13");
+  });
 });

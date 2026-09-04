@@ -38,6 +38,10 @@ export type ProfileForMatching = {
   languages: ProfileLanguage[];
   workAuthorization: string | null;
   availabilityNote: string | null;
+  availabilityStart?: Date | null;
+  availabilityEnd?: Date | null;
+  minDurationWeeks?: number | null;
+  maxDurationWeeks?: number | null;
 };
 
 export type JobForMatching = {
@@ -49,6 +53,9 @@ export type JobForMatching = {
   remoteType: "REMOTE" | "HYBRID" | "ONSITE" | null;
   sector: string | null;
   rawText: string;
+  requiredStartDate?: Date | null;
+  requiredEndDate?: Date | null;
+  durationWeeks?: number | null;
 };
 
 export type MatchWeights = {
@@ -235,6 +242,49 @@ export function computeEligibility(profile: ProfileForMatching, job: JobForMatch
   const notes: string[] = [];
   let hasConcern = false;
   let hasUncertainty = false;
+
+  // Availability is a hard personal constraint, separate from the match
+  // score. A mandatory job window must be fully contained in the candidate's
+  // availability window; partial overlap is not enough.
+  const jobStart = job.requiredStartDate ?? null;
+  const jobEnd = job.requiredEndDate ?? null;
+  const availableStart = profile.availabilityStart ?? null;
+  const availableEnd = profile.availabilityEnd ?? null;
+  if (jobStart || jobEnd) {
+    if (!availableStart || !availableEnd) {
+      notes.push("L'offre impose des dates, mais ta fenêtre de disponibilité n'est pas entièrement renseignée.");
+      hasUncertainty = true;
+    } else if (
+      (jobStart && jobStart < availableStart) ||
+      (jobStart && jobStart > availableEnd) ||
+      (jobEnd && jobEnd > availableEnd) ||
+      (jobEnd && jobEnd < availableStart)
+    ) {
+      const jobWindow = `${jobStart?.toISOString().slice(0, 10) ?? "?"} → ${jobEnd?.toISOString().slice(0, 10) ?? "?"}`;
+      const profileWindow = `${availableStart.toISOString().slice(0, 10)} → ${availableEnd.toISOString().slice(0, 10)}`;
+      notes.push(`Condition bloquante : calendrier imposé ${jobWindow}, hors de ta disponibilité ${profileWindow}.`);
+      hasConcern = true;
+    }
+  }
+
+  const dateDurationWeeks = jobStart && jobEnd
+    ? Math.ceil((jobEnd.getTime() - jobStart.getTime() + 86_400_000) / (7 * 86_400_000))
+    : null;
+  const requiredDurationWeeks = job.durationWeeks ?? dateDurationWeeks;
+  const minWeeks = profile.minDurationWeeks ?? null;
+  const maxWeeks = profile.maxDurationWeeks ?? null;
+  if (minWeeks || maxWeeks) {
+    if (requiredDurationWeeks === null) {
+      notes.push("Durée de l'offre non précisée : impossible de vérifier ta contrainte de durée.");
+      hasUncertainty = true;
+    } else if (minWeeks && requiredDurationWeeks < minWeeks) {
+      notes.push(`Condition bloquante : environ ${requiredDurationWeeks} semaine(s), sous ton minimum de ${minWeeks}.`);
+      hasConcern = true;
+    } else if (maxWeeks && requiredDurationWeeks > maxWeeks) {
+      notes.push(`Condition bloquante : environ ${requiredDurationWeeks} semaine(s), au-dessus de ton maximum de ${maxWeeks}.`);
+      hasConcern = true;
+    }
+  }
 
   // Education level
   const requiredEduRank = educationRank(job.requiredEducationLevel);

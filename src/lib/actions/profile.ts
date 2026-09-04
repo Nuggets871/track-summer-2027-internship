@@ -66,6 +66,10 @@ const profileSchema = z.object({
   languages: z.array(z.object({ language: z.string(), level: z.string(), detail: z.preprocess(emptyToNull, z.string().nullable().optional()) })).default([]),
   workAuthorization: z.preprocess(emptyToNull, z.string().nullable().optional()),
   availabilityNote: z.preprocess(emptyToNull, z.string().nullable().optional()),
+  availabilityStart: z.preprocess(emptyToNull, z.coerce.date().nullable().optional()),
+  availabilityEnd: z.preprocess(emptyToNull, z.coerce.date().nullable().optional()),
+  minDurationWeeks: z.preprocess(emptyToNull, z.coerce.number().int().positive().max(260).nullable().optional()),
+  maxDurationWeeks: z.preprocess(emptyToNull, z.coerce.number().int().positive().max(260).nullable().optional()),
 });
 
 export type ProfileInput = z.infer<typeof profileSchema>;
@@ -73,6 +77,12 @@ export type ProfileInput = z.infer<typeof profileSchema>;
 export async function updateProfile(raw: ProfileInput) {
   await getOrCreateProfileRow();
   const data = profileSchema.parse(raw);
+  if (data.availabilityStart && data.availabilityEnd && data.availabilityStart > data.availabilityEnd) {
+    throw new Error("La date de fin de disponibilité doit être postérieure à la date de début.");
+  }
+  if (data.minDurationWeeks && data.maxDurationWeeks && data.minDurationWeeks > data.maxDurationWeeks) {
+    throw new Error("La durée maximale doit être supérieure ou égale à la durée minimale.");
+  }
 
   await prisma.profile.update({
     where: { id: "singleton" },
@@ -98,6 +108,10 @@ export async function updateProfile(raw: ProfileInput) {
       languages: JSON.stringify(data.languages),
       workAuthorization: data.workAuthorization,
       availabilityNote: data.availabilityNote,
+      availabilityStart: data.availabilityStart,
+      availabilityEnd: data.availabilityEnd,
+      minDurationWeeks: data.minDurationWeeks,
+      maxDurationWeeks: data.maxDurationWeeks,
     },
   });
 

@@ -14,7 +14,8 @@ export function buildProfileContext(profile: AppProfile, options: ContextOptions
     `Expérience professionnelle déclarée : ${profile.yearsOfExperience} an(s)`,
     `Compétences : ${profile.skills.join(", ") || "non renseignées"}`,
     `Langues : ${profile.languages.map((language) => `${language.language} (${language.level}${"detail" in language && language.detail ? `, ${language.detail}` : ""})`).join(", ") || "non renseignées"}`,
-    `Disponibilité : ${profile.availabilityNote ?? "non renseignée"}`,
+    `Disponibilité stricte : ${profile.availabilityStart?.toISOString().slice(0, 10) ?? "début non renseigné"} → ${profile.availabilityEnd?.toISOString().slice(0, 10) ?? "fin non renseignée"}; durée ${profile.minDurationWeeks ?? "min non renseigné"}${profile.maxDurationWeeks ? ` à ${profile.maxDurationWeeks}` : "+"} semaines.`,
+    `Notes de disponibilité : ${profile.availabilityNote ?? "aucune"}`,
     `Droit au travail / visa : ${profile.workAuthorization ?? "non renseigné"}`,
   ];
 

@@ -94,7 +94,9 @@ function mergeAiIntoBaseline(baseline: ExtractedJobData, ai: Awaited<ReturnType<
   fillIfEmpty("salaryAmount", ai.salaryAmount);
   fillIfEmpty("salaryCurrency", ai.salaryCurrency);
   fillIfEmpty("durationMonths", ai.durationMonths);
+  fillIfEmpty("durationWeeks", ai.durationWeeks);
   fillIfEmpty("startDate", ai.startDate);
+  fillIfEmpty("endDate", ai.endDate);
   fillIfEmpty("deadline", ai.deadline);
   fillIfEmpty("contractType", ai.contractType);
   // The grounded AI list is authoritative for requirement semantics: unlike
@@ -134,6 +136,9 @@ async function runMatchAndEligibility(extracted: ExtractedJobData) {
     remoteType: extracted.remoteType,
     sector: null,
     rawText: extracted.rawText,
+    requiredStartDate: extracted.startDate ? new Date(`${extracted.startDate}T00:00:00Z`) : null,
+    requiredEndDate: extracted.endDate ? new Date(`${extracted.endDate}T00:00:00Z`) : null,
+    durationWeeks: extracted.durationWeeks ?? (extracted.durationMonths ? Math.round(extracted.durationMonths * 4.345) : null),
   };
   const match = computeJobMatch(profile, jobForMatching, settings.matchWeights, {
     preferredCountries: settings.preferredCountries,
@@ -222,6 +227,9 @@ const saveOpportunitySchema = z.object({
     requiredLanguages: z.array(z.string()).default([]),
     requiredEducationLevel: z.preprocess(emptyToNull, z.string().nullable().optional()),
     requiredExperienceYears: z.preprocess(emptyToNull, z.coerce.number().int().nullable().optional()),
+    requiredStartDate: z.preprocess(emptyToNull, z.coerce.date().nullable().optional()),
+    requiredEndDate: z.preprocess(emptyToNull, z.coerce.date().nullable().optional()),
+    requiredDurationWeeks: z.preprocess(emptyToNull, z.coerce.number().int().positive().nullable().optional()),
     contractType: z.preprocess(emptyToNull, z.string().nullable().optional()),
     matchScore: z.number(),
     matchBreakdown: z.array(z.record(z.string(), z.unknown())),
@@ -306,6 +314,9 @@ export async function saveAnalyzedOpportunity(raw: SaveOpportunityInput) {
         requiredLanguages: JSON.stringify(data.analysis.requiredLanguages),
         requiredEducationLevel: data.analysis.requiredEducationLevel,
         requiredExperienceYears: data.analysis.requiredExperienceYears,
+        requiredStartDate: data.analysis.requiredStartDate,
+        requiredEndDate: data.analysis.requiredEndDate,
+        requiredDurationWeeks: data.analysis.requiredDurationWeeks,
         contractType: data.analysis.contractType,
         matchScore: Math.round(data.analysis.matchScore),
         matchBreakdown: JSON.stringify(data.analysis.matchBreakdown),
@@ -352,6 +363,9 @@ export async function recalculateJobMatch(applicationId: string) {
     countryName: application.country?.name ?? null,
     remoteType: (application.remotePossible ? "REMOTE" : null) as "REMOTE" | null,
     sector: application.sector,
+    requiredStartDate: analysis.requiredStartDate,
+    requiredEndDate: analysis.requiredEndDate,
+    durationWeeks: analysis.requiredDurationWeeks ?? (application.durationMonths ? Math.round(application.durationMonths * 4.345) : null),
   };
 
   const match = computeJobMatch(profile, jobForMatching, settings.matchWeights, {
@@ -419,6 +433,9 @@ export async function reanalyzeOpportunity(applicationId: string) {
       requiredLanguages: JSON.stringify(extracted.requiredLanguages),
       requiredEducationLevel: extracted.requiredEducationLevel,
       requiredExperienceYears: extracted.requiredExperienceYears,
+      requiredStartDate: extracted.startDate ? new Date(`${extracted.startDate}T00:00:00Z`) : null,
+      requiredEndDate: extracted.endDate ? new Date(`${extracted.endDate}T00:00:00Z`) : null,
+      requiredDurationWeeks: extracted.durationWeeks ?? (extracted.durationMonths ? Math.round(extracted.durationMonths * 4.345) : null),
       contractType: extracted.contractType,
       matchScore: match.total,
       matchBreakdown: JSON.stringify(match.factors),

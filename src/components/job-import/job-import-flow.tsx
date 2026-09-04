@@ -186,6 +186,9 @@ export function JobImportReviewStep({ flow }: { flow: JobImportFlow }) {
           <FormField label="Date de début">
             <Input type="date" value={fields.startDate} onChange={(e) => flow.updateField("startDate", e.target.value)} />
           </FormField>
+          <FormField label="Date de fin imposée">
+            <Input type="date" value={fields.endDate} onChange={(e) => flow.updateField("endDate", e.target.value)} />
+          </FormField>
           <FormField label="Deadline">
             <Input type="date" value={fields.deadline} onChange={(e) => flow.updateField("deadline", e.target.value)} />
           </FormField>
