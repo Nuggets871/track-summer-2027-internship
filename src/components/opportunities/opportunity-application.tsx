@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles, Link2, Check, ChevronDown, ExternalLink, Undo2, AlertTriangle } from "lucide-react";
+import { FileText, Sparkles, Check, ChevronDown, ExternalLink, Undo2, AlertTriangle, Globe2 } from "lucide-react";
 import { updateApplication } from "@/lib/actions/applications";
 import { generateCoverLetterForApplication, generateSpontaneousMessage, refineCoverLetter, restorePreviousCoverLetter, saveCoverLetterContent, saveSpontaneousMessage } from "@/lib/actions/ai-actions";
 import type { AppProfile } from "@/lib/data/profile";
@@ -72,13 +72,31 @@ function LinkChip({ label, url, color }: { label: string; url: string; color: Li
   return (
     <div className={cn("flex min-w-44 items-center justify-between rounded-lg border p-2 transition-colors", LINK_COLOR_STYLES[color])}>
       <button type="button" onClick={copy} title={`Copier le lien ${label}`} className="flex flex-1 items-center gap-2 px-1.5 py-1 text-sm font-semibold">
-        {copied ? <Check className="size-4" /> : <Link2 className="size-4" />} {copied ? "Copié" : label}
+        {copied ? <Check className="size-5" /> : <LinkBrandIcon brand={color} />} {copied ? "Copié" : label}
       </button>
       <a href={url} target="_blank" rel="noreferrer" aria-label={`Ouvrir ${label}`} className="rounded-md p-1.5 hover:bg-background/40">
         <ExternalLink className="size-4" />
       </a>
     </div>
   );
+}
+
+function LinkBrandIcon({ brand }: { brand: LinkColor }) {
+  if (brand === "linkedin") {
+    return (
+      <svg viewBox="0 0 24 24" className="size-5 fill-current" aria-hidden="true">
+        <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12ZM6.81 20.45H3.86V9h2.95v11.45ZM22.23 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45C23.2 24 24 23.23 24 22.27V1.73C24 .77 23.2 0 22.22 0h.01Z" />
+      </svg>
+    );
+  }
+  if (brand === "github") {
+    return (
+      <svg viewBox="0 0 24 24" className="size-5 fill-current" aria-hidden="true">
+        <path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.11.82-.26.82-.58v-2.04c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.33-1.76-1.33-1.76-1.09-.74.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.83 2.81 1.3 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18.76.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.63-5.48 5.92.42.36.81 1.1.81 2.22v3.29c0 .31.21.69.83.57A12 12 0 0 0 12 .3Z" />
+      </svg>
+    );
+  }
+  return <Globe2 className="size-5" aria-hidden="true" />;
 }
 
 export function OpportunityApplication({ application, profile }: { application: ApplicationDetail; profile: AppProfile }) {
