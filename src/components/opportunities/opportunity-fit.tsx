@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MatchScoreCard } from "@/components/job-import/match-score-card";
-import { recalculateJobMatch } from "@/lib/actions/job-import";
+import { reanalyzeOpportunity } from "@/lib/actions/job-import";
 
 type JobAnalysisView = {
   id: string;
@@ -49,12 +49,12 @@ export function OpportunityFit({
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                await recalculateJobMatch(application.id);
-                toast.success("Match recalculé");
+                await reanalyzeOpportunity(application.id);
+                toast.success("Annonce réanalysée et compatibilité recalculée");
               })
             }
           >
-            <RefreshCw className="size-3.5" /> Recalculer le match
+            <RefreshCw className="size-3.5" /> Relancer l&apos;analyse
           </Button>
         )}
       </CardHeader>

@@ -147,4 +147,12 @@ describe("extractJobPostingFromText — manual paste fallback", () => {
     expect(result.requiredExperienceYears).toBe(2);
     expect(result.requiredSkills).toEqual(expect.arrayContaining(["Node.js", "PostgreSQL"]));
   });
+
+  it("does not turn an inclusive undergrad-to-PhD range into a PhD requirement", () => {
+    const result = extractJobPostingFromText(
+      "**Spring 2027 Engineering Intern&#x20;** Whether you’re an undergrad or a PhD student, your contributions matter.",
+    );
+    expect(result.requiredEducationLevel).toBeNull();
+    expect(result.rawText).not.toContain("&#x20;");
+  });
 });

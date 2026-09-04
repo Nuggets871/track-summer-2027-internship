@@ -51,4 +51,24 @@ describe("extractJobPostingWithAI — grounded requirements", () => {
     expect(result?.requiredExperienceYears).toBe(2);
     expect(result?.requiredSkills).toEqual(["Node.js"]);
   });
+
+  it("rejects a PhD requirement inferred from an inclusive education range", async () => {
+    const source = "Whether you're an undergrad or a PhD student, your contributions matter.";
+    vi.mocked(aiChat).mockResolvedValue(JSON.stringify({
+      requiredEducationLevel: "PHD",
+      evidence: { requiredEducationLevel: source, requiredExperienceYears: null, requiredSkills: {} },
+    }));
+    const result = await extractJobPostingWithAI(source);
+    expect(result?.requiredEducationLevel).toBeNull();
+  });
+
+  it("keeps an explicit PhD requirement", async () => {
+    const source = "Qualifications: PhD required in computer science.";
+    vi.mocked(aiChat).mockResolvedValue(JSON.stringify({
+      requiredEducationLevel: "PHD",
+      evidence: { requiredEducationLevel: source, requiredExperienceYears: null, requiredSkills: {} },
+    }));
+    const result = await extractJobPostingWithAI(source);
+    expect(result?.requiredEducationLevel).toBe("PHD");
+  });
 });

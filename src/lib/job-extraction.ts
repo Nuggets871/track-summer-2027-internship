@@ -106,6 +106,7 @@ function decodeEntities(input: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
 }
 
@@ -276,6 +277,12 @@ function detectLanguages(text: string): string[] {
 
 function detectEducationLevel(text: string): string | null {
   const lower = text.toLowerCase();
+  // Inclusive ranges describe who may apply, not a minimum degree. Picking
+  // the highest word in “undergrad or PhD” creates a false rejection.
+  if (
+    /(?:whether|from)\b[^.\n]{0,80}\b(?:undergrads?|undergraduates?|bachelors?|students?)\b[^.\n]{0,80}\b(?:or|to|through)\b[^.\n]{0,40}\b(?:ph\.?d|doctorate|doctoral)\b/i.test(text) ||
+    /\b(?:undergrads?|undergraduates?|bachelors?)\b\s*(?:\/|or|ou|à|to)\s*\b(?:masters?|ph\.?d|doctorants?|doctoral)\b/i.test(text)
+  ) return null;
   if (/\bph\.?d\b|\bdoctorat\b/.test(lower)) return "PHD";
   if (/\bmaster\b|\bmba\b|\bbac\s*\+\s*5\b/.test(lower)) return "MASTER";
   if (/\bbachelor\b|\blicence\b|\bbac\s*\+\s*3\b/.test(lower)) return "BACHELOR";
@@ -421,7 +428,9 @@ export function extractJobPostingFromHtml(html: string): ExtractedJobData {
 }
 
 export function extractJobPostingFromText(pastedText: string): ExtractedJobData {
-  const text = pastedText.slice(0, MAX_RAW_TEXT);
+  // Text copied from rich job boards often still contains HTML entities
+  // (notably &#x20;) even though it is no longer HTML.
+  const text = decodeEntities(pastedText).slice(0, MAX_RAW_TEXT);
   const heuristics = extractHeuristics(text, null);
   return {
     ...EMPTY,
