@@ -8,9 +8,9 @@ export type NavItem = {
 
 // Keep the primary navigation focused on the candidate's daily workflow.
 export const NAV_ITEMS: NavItem[] = [
-  { label: "Home", href: "/", icon: Home },
-  { label: "Opportunities", href: "/opportunities", icon: Briefcase },
-  { label: "Profile", href: "/profile", icon: User },
+  { label: "Accueil", href: "/", icon: Home },
+  { label: "Opportunités", href: "/opportunities", icon: Briefcase },
+  { label: "Profil", href: "/profile", icon: User },
 ];
 
-export const SETTINGS_NAV_ITEM: NavItem = { label: "Settings", href: "/settings", icon: Settings };
+export const SETTINGS_NAV_ITEM: NavItem = { label: "Paramètres", href: "/settings", icon: Settings };

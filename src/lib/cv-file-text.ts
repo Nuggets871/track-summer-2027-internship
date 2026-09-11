@@ -1,7 +1,7 @@
 // Extracts plain text from an uploaded CV file (PDF, DOCX, or plain text)
 // so it can be fed to the CV-parsing prompt and kept as Profile.cvRawText
-// for every other AI feature (cover letters, CV optimization, the
-// assistant) to ground itself on.
+// for every other AI feature (cover letters, CV optimization, interview
+// prep) to ground itself on.
 
 export async function extractTextFromCvFile(buffer: Buffer, filename: string, mimeType: string | null): Promise<string> {
   const ext = filename.toLowerCase().split(".").pop() ?? "";

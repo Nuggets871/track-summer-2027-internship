@@ -1,5 +1,5 @@
 // Provider-agnostic types. Business logic (job extraction, CV parsing,
-// cover letters, CV optimization, interview prep, the assistant) only ever
+// cover letters, CV optimization, interview prep) only ever
 // talks to these — never to a specific vendor's SDK/HTTP shape — so a new
 // provider (OpenAI, Anthropic, Gemini...) is a new file implementing
 // `AiProvider`, not a rewrite of every prompt.
@@ -10,6 +10,8 @@ export type ChatMessage = { role: ChatRole; content: string };
 export type AiCallOptions = {
   jsonMode?: boolean;
   temperature?: number;
+  /** Hard cap on the generated response length, in tokens. */
+  maxTokens?: number;
 };
 
 export interface AiProvider {

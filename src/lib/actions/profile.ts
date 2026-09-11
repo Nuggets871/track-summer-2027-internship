@@ -6,10 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateProfileRow } from "@/lib/data/profile";
 import { parseCvWithAI } from "@/lib/ai/prompts/cv-parsing";
 import { extractTextFromCvFile } from "@/lib/cv-file-text";
-import { recomputeAllLocalScores } from "@/lib/discover/scoring";
 import { normalizeSkillList } from "@/lib/skill-normalization";
 
 const emptyToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
+
+// CV upload hardening: a bounded size and an extension allowlist, enforced
+// server-side. The client's `accept` attribute is only a convenience.
+const MAX_CV_BYTES = 10 * 1024 * 1024;
+const ALLOWED_CV_EXTENSIONS = new Set([".pdf", ".docx", ".doc", ".txt", ".md"]);
 
 /** Accepts "github.com/x" as readily as "https://github.com/x" — job forms
  * and users alike rarely bother typing the scheme, and a link without one
@@ -115,14 +119,8 @@ export async function updateProfile(raw: ProfileInput) {
     },
   });
 
-  // The Match Score for every Discover listing depends on this profile —
-  // recompute it now (pure arithmetic, no AI call) rather than letting
-  // scores silently go stale until the next sync.
-  await recomputeAllLocalScores();
-
   revalidatePath("/", "layout");
   revalidatePath("/profile");
-  revalidatePath("/discover");
 }
 
 /** Adds one user-confirmed skill without replacing the rest of the profile. */
@@ -132,7 +130,6 @@ export async function addSkillToProfile(rawSkill: string) {
   const current = JSON.parse(profile.skills ?? "[]") as string[];
   const skills = normalizeSkillList([...current, skill]);
   await prisma.profile.update({ where: { id: "singleton" }, data: { skills: JSON.stringify(skills) } });
-  await recomputeAllLocalScores();
   revalidatePath("/", "layout");
   revalidatePath("/profile");
   return skills;
@@ -156,6 +153,12 @@ export type CvParsePreview = {
 export async function uploadAndParseCv(formData: FormData): Promise<CvParsePreview> {
   const file = formData.get("file") as File | null;
   if (!file || file.size === 0) throw new Error("Aucun fichier fourni");
+  if (file.size > MAX_CV_BYTES) throw new Error("Fichier trop volumineux (10 Mo maximum).");
+
+  const extension = (file.name.match(/\.[^.]+$/)?.[0] ?? "").toLowerCase();
+  if (extension && !ALLOWED_CV_EXTENSIONS.has(extension)) {
+    throw new Error("Format non pris en charge — utilise un PDF, DOCX ou TXT.");
+  }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const rawText = await extractTextFromCvFile(buffer, file.name, file.type || null);
@@ -166,7 +169,7 @@ export async function uploadAndParseCv(formData: FormData): Promise<CvParsePrevi
   const { randomUUID } = await import("node:crypto");
   const uploadsDir = path.join(process.cwd(), "uploads");
   await mkdir(uploadsDir, { recursive: true });
-  const ext = path.extname(file.name) || ".txt";
+  const ext = extension || ".txt";
   const storedName = `${randomUUID()}${ext}`;
   await writeFile(path.join(uploadsDir, storedName), buffer);
 
@@ -243,9 +246,6 @@ export async function applyCvToProfile(raw: z.infer<typeof applyCvSchema>) {
     },
   });
 
-  await recomputeAllLocalScores();
-
   revalidatePath("/", "layout");
   revalidatePath("/profile");
-  revalidatePath("/discover");
 }

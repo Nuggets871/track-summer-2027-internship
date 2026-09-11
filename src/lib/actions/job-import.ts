@@ -11,6 +11,8 @@ import { getProfile } from "@/lib/data/profile";
 import { getSettings } from "@/lib/data/settings";
 import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
 import { normalizeSkillList } from "@/lib/skill-normalization";
+import { assertPublicHttpUrl } from "@/lib/url-safety";
+import { safeJsonParse } from "@/lib/utils";
 const FETCH_TIMEOUT_MS = 12_000;
 
 export type DuplicateMatch = { id: string; title: string; companyName: string } | null;
@@ -29,7 +31,10 @@ async function fetchHtml(url: string): Promise<string | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
+    // Reject non-http(s) and private/loopback/metadata addresses before any
+    // network call — these URLs come from the user or from stored data.
+    const safeUrl = await assertPublicHttpUrl(url);
+    const res = await fetch(safeUrl, {
       signal: controller.signal,
       redirect: "follow",
       headers: {
@@ -101,7 +106,9 @@ function mergeAiIntoBaseline(baseline: ExtractedJobData, ai: Awaited<ReturnType<
   fillIfEmpty("contractType", ai.contractType);
   // The grounded AI list is authoritative for requirement semantics: unlike
   // the lexical fallback it excludes company-stack and nice-to-have mentions.
-  if (ai.requiredSkills) merged.requiredSkills = normalizeSkillList(ai.requiredSkills);
+  // Guard on length: `[]` is truthy, and an AI pass that finds no anchored
+  // skill must not wipe what the heuristic baseline already detected.
+  if (ai.requiredSkills?.length) merged.requiredSkills = normalizeSkillList(ai.requiredSkills);
   if (ai.requiredLanguages?.length) {
     const normalized = ai.requiredLanguages.map(normalizeLanguageName);
     merged.requiredLanguages = dedupeCaseInsensitive([...merged.requiredLanguages, ...normalized]);
@@ -345,8 +352,8 @@ export async function recalculateJobMatch(applicationId: string) {
     ExtractedJobData,
     "requiredSkills" | "requiredLanguages" | "requiredEducationLevel" | "requiredExperienceYears" | "rawText"
   > = {
-    requiredSkills: JSON.parse(analysis.requiredSkills ?? "[]"),
-    requiredLanguages: JSON.parse(analysis.requiredLanguages ?? "[]"),
+    requiredSkills: safeJsonParse<string[]>(analysis.requiredSkills, []),
+    requiredLanguages: safeJsonParse<string[]>(analysis.requiredLanguages, []),
     requiredEducationLevel: analysis.requiredEducationLevel,
     requiredExperienceYears: analysis.requiredExperienceYears,
     rawText: analysis.rawExtractedText ?? "",

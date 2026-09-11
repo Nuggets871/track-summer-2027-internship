@@ -2,6 +2,9 @@ import type { AiProvider, ChatMessage, AiCallOptions } from "@/lib/ai/types";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
 const REQUEST_TIMEOUT_MS = 20_000;
+// Bounds every generation so a prompt can never produce an unbounded reply
+// (and an unbounded bill). Callers can raise/lower it per task.
+const DEFAULT_MAX_TOKENS = 2_048;
 
 export function createDeepSeekProvider(getApiKey: () => Promise<string | null>): AiProvider {
   async function call(messages: ChatMessage[], opts: AiCallOptions = {}): Promise<string | null> {
@@ -19,6 +22,7 @@ export function createDeepSeekProvider(getApiKey: () => Promise<string | null>):
           model: "deepseek-chat",
           messages,
           temperature: opts.temperature ?? 0.3,
+          max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
           ...(opts.jsonMode ? { response_format: { type: "json_object" } } : {}),
         }),
         signal: controller.signal,

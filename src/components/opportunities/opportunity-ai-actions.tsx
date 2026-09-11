@@ -2,12 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { RefreshCw, FileSearch, GraduationCap } from "lucide-react";
+import { FileSearch, GraduationCap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { reanalyzeOpportunity } from "@/lib/actions/job-import";
 import { improveCvForApplication, generateInterviewPrepForApplication } from "@/lib/actions/ai-actions";
 import type { CvOptimizationResult } from "@/lib/ai/prompts/cv-optimization";
 
@@ -17,14 +16,12 @@ export function OpportunityAiActions({
   interviewPrepNotes,
   hasCv,
   statusKey,
-  applicationType,
 }: {
   applicationId: string;
   aiConfigured: boolean;
   interviewPrepNotes: string | null;
   hasCv: boolean;
   statusKey: string;
-  applicationType: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [cvResult, setCvResult] = useState<CvOptimizationResult | null>(null);
@@ -51,21 +48,6 @@ export function OpportunityAiActions({
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap gap-2">
-          {applicationType === "ADVERTISED" && <Button
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() =>
-              requireAi(() =>
-                startTransition(async () => {
-                  await reanalyzeOpportunity(applicationId);
-                  toast.success("Analyse relancée");
-                }),
-              )
-            }
-          >
-            <RefreshCw className="size-3.5" /> Analyser à nouveau
-          </Button>}
           <Button
             size="sm"
             variant="outline"

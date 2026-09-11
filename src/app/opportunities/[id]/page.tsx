@@ -58,7 +58,6 @@ export default async function OpportunityDetailPage({ params }: PageProps<"/oppo
         interviewPrepNotes={application.interviewPrepNotes}
         hasCv={!!profile.cvRawText}
         statusKey={application.status.key}
-        applicationType={application.applicationType}
       />
       <OpportunityStatusShortcut applicationId={application.id} statusKey={application.status.key} />
     </div>

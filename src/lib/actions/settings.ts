@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSettingsRow } from "@/lib/data/settings";
-import { recomputeAllLocalScores } from "@/lib/discover/scoring";
 
 const emptyToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 
@@ -53,13 +52,6 @@ export async function updateSettings(raw: z.infer<typeof settingsSchema>) {
     },
   });
 
-  // These three inputs directly feed computeJobMatch — refresh Discover's
-  // stored pre-scores so filters/sort reflect the new weights immediately.
-  if (matchWeights || preferredCountries || preferredSectors) {
-    await recomputeAllLocalScores();
-  }
-
   revalidatePath("/", "layout");
   revalidatePath("/settings");
-  revalidatePath("/discover");
 }

@@ -29,13 +29,9 @@ model Country {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  cities        City[]
-  companies     Company[]
-  applications  Application[]
-  contacts      Contact[]
-  researchItems ResearchItem[]
-  notes         Note[]
-  offers        Offer[]
+  cities       City[]
+  companies    Company[]
+  applications Application[]
 
   @@index([name])
 }
@@ -80,18 +76,9 @@ model Company {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  applications  Application[]
-  contacts      Contact[]
-  documents     Document[]
-  notes         Note[]
-  events        Event[]
-  tasks         Task[]
-  interactions  Interaction[]
-  researchItems ResearchItem[]
-  interviews    Interview[]
-  offers        Offer[]
-  coverLetters  CoverLetter[]
-  tags          Tag[]          @relation("CompanyTags")
+  applications Application[]
+  documents    Document[]
+  coverLetters CoverLetter[]
 
   @@index([name])
 }
@@ -135,10 +122,6 @@ model Application {
   jobUrl String?
   source String? // LinkedIn, Site entreprise, Candidature spontanée, Networking, ...
 
-  primaryContactId String?
-  primaryContact   Contact?  @relation("ApplicationPrimaryContact", fields: [primaryContactId], references: [id])
-  contacts         Contact[] @relation("ApplicationContacts")
-
   discoveredAt       DateTime?
   appliedAt          DateTime?
   deadline           DateTime?
@@ -176,152 +159,19 @@ model Application {
   contactedAt        DateTime?
   followUpAt         DateTime?
   aiChatHistory      String? // JSON array of opportunity-scoped chat messages
-  isDemo             Boolean @default(false)
+  isDemo             Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  documents     Document[]
-  tasks         Task[]
-  events        Event[]
-  interactions  Interaction[]
-  interviews    Interview[]
-  offer         Offer?
-  coverLetter   CoverLetter?
-  interviewPrep InterviewPrep?
-  notesList     Note[]
-  researchItems ResearchItem[]
-  tags          Tag[]          @relation("ApplicationTags")
-  jobAnalysis   JobAnalysis?
+  documents   Document[]
+  coverLetter CoverLetter?
+  jobAnalysis JobAnalysis?
 
   @@index([companyId])
   @@index([statusId])
   @@index([deadline])
   @@index([nextActionDate])
-}
-
-// ---------------------------------------------------------------------------
-// Contacts / CRM
-// ---------------------------------------------------------------------------
-
-model Contact {
-  id        String   @id @default(cuid())
-  firstName String
-  lastName  String
-  companyId String?
-  company   Company? @relation(fields: [companyId], references: [id])
-  position  String?
-  email     String?
-  phone     String?
-  linkedin  String?
-  countryId String?
-  country   Country? @relation(fields: [countryId], references: [id])
-  city      String?
-
-  contactType          String @default("OTHER") // RECRUITER | HR | MANAGER | ALUMNI | STUDENT | PROFESSOR | PERSONAL | EMPLOYEE | FOUNDER | SPEAKER | OTHER
-  relationshipStrength Int    @default(2) // 1-5
-
-  firstContactDate  DateTime?
-  lastInteractionAt DateTime?
-  nextFollowUpDate  DateTime?
-
-  networkingStage     String? // IDENTIFIED | TO_CONTACT | CONTACTED | RESPONDED | CALL | ACTIVE_RELATION | REFERRAL
-  linkedinRequestSent Boolean @default(false)
-  linkedinAccepted    Boolean @default(false)
-  referralObtained    Boolean @default(false)
-
-  notes  String?
-  isDemo Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  primaryForApplications Application[] @relation("ApplicationPrimaryContact")
-  applications           Application[] @relation("ApplicationContacts")
-  interactions           Interaction[]
-  tasks                  Task[]
-  events                 Event[]
-  notesList              Note[]
-  tags                   Tag[]         @relation("ContactTags")
-
-  @@index([lastName])
-  @@index([companyId])
-}
-
-// ---------------------------------------------------------------------------
-// Timeline / interactions
-// ---------------------------------------------------------------------------
-
-model Interaction {
-  id            String       @id @default(cuid())
-  type          String // EMAIL | LINKEDIN | CALL | INTERVIEW | MEETING | EVENT | RECOMMENDATION | STATUS_CHANGE | NOTE | OTHER
-  date          DateTime     @default(now())
-  summary       String
-  details       String?
-  applicationId String?
-  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  contactId     String?
-  contact       Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  companyId     String?
-  company       Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdAt     DateTime     @default(now())
-
-  @@index([applicationId])
-  @@index([contactId])
-}
-
-// ---------------------------------------------------------------------------
-// Tasks
-// ---------------------------------------------------------------------------
-
-model Task {
-  id            String       @id @default(cuid())
-  title         String
-  description   String?
-  category      String?
-  applicationId String?
-  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  companyId     String?
-  company       Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  contactId     String?
-  contact       Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  priority      String       @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
-  dueDate       DateTime?
-  status        String       @default("TODO") // TODO | IN_PROGRESS | DONE
-  recurrence    String? // NONE | DAILY | WEEKLY | MONTHLY
-  completedAt   DateTime?
-  isDemo        Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  @@index([status])
-  @@index([dueDate])
-}
-
-// ---------------------------------------------------------------------------
-// Calendar
-// ---------------------------------------------------------------------------
-
-model Event {
-  id            String       @id @default(cuid())
-  title         String
-  type          String // DEADLINE | FOLLOW_UP | INTERVIEW | NETWORKING_CALL | FAIR | VISA_DEADLINE | PERSONAL | OTHER
-  date          DateTime
-  endDate       DateTime?
-  allDay        Boolean      @default(true)
-  location      String?
-  notes         String?
-  applicationId String?
-  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  contactId     String?
-  contact       Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  companyId     String?
-  company       Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  isDemo        Boolean      @default(false)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-
-  @@index([date])
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +193,6 @@ model Document {
   notes         String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
-  tags          Tag[]        @relation("DocumentTags")
 
   @@index([category])
 }
@@ -366,192 +215,6 @@ model CoverLetter {
   revisionHistory      String? // JSON array of previous generated versions
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
-}
-
-// ---------------------------------------------------------------------------
-// Interviews / prep
-// ---------------------------------------------------------------------------
-
-model Interview {
-  id                 String      @id @default(cuid())
-  applicationId      String
-  application        Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  companyId          String?
-  company            Company?    @relation(fields: [companyId], references: [id])
-  roundLabel         String // "Entretien RH", "Entretien manager", ...
-  scheduledAt        DateTime?
-  durationMinutes    Int?
-  format             String? // VIDEO | PHONE | ONSITE
-  interviewers       String? // JSON array of names/roles
-  notes              String?
-  postInterviewNotes String?
-  status             String      @default("SCHEDULED") // SCHEDULED | DONE | CANCELLED
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-
-  @@index([applicationId])
-  @@index([scheduledAt])
-}
-
-model InterviewPrep {
-  id                 String      @id @default(cuid())
-  applicationId      String      @unique
-  application        Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  whyCompany         String?
-  whyRole            String?
-  whyCountry         String?
-  relevantExperience String?
-  questionsToAsk     String?
-  weaknessesToPrep   String?
-  peopleMet          String? // JSON array
-  updatedAt          DateTime    @updatedAt
-  createdAt          DateTime    @default(now())
-
-  questions Question[]
-}
-
-model Question {
-  id              String         @id @default(cuid())
-  text            String
-  category        String // BEHAVIORAL | TECHNICAL | TO_ASK
-  status          String         @default("TO_PREPARE") // TO_PREPARE | IN_PROGRESS | MASTERED
-  answerNotes     String?
-  interviewPrepId String?
-  interviewPrep   InterviewPrep? @relation(fields: [interviewPrepId], references: [id], onDelete: Cascade)
-  isBankItem      Boolean        @default(false) // true = reusable global question bank
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-}
-
-// ---------------------------------------------------------------------------
-// Offers & comparison
-// ---------------------------------------------------------------------------
-
-model Offer {
-  id                String      @id @default(cuid())
-  applicationId     String      @unique
-  application       Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  companyId         String?
-  company           Company?    @relation(fields: [companyId], references: [id])
-  countryId         String?
-  country           Country?    @relation(fields: [countryId], references: [id])
-  role              String?
-  city              String?
-  salaryAmount      Float?
-  currency          String      @default("EUR")
-  bonus             Float?
-  housing           Boolean     @default(false)
-  visaSupport       Boolean     @default(false)
-  durationMonths    Int?
-  startDate         DateTime?
-  prestige          Int         @default(3) // 1-5
-  interest          Int         @default(3)
-  learning          Int         @default(3)
-  network           Int         @default(3)
-  careerPotential   Int         @default(3)
-  costOfLivingIndex Int         @default(50) // 0-100, higher = more expensive
-  status            String      @default("PENDING") // PENDING | ACCEPTED | DECLINED
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-}
-
-// ---------------------------------------------------------------------------
-// Research database
-// ---------------------------------------------------------------------------
-
-model ResearchItem {
-  id            String       @id @default(cuid())
-  title         String
-  url           String?
-  category      String // COMPANY | PROGRAM | ARTICLE | RANKING | VISA_ADVICE | CITY | SALARY | PERSON | PLATFORM | OTHER
-  summary       String?
-  notes         String?
-  interestLevel Int          @default(3)
-  countryId     String?
-  country       Country?     @relation(fields: [countryId], references: [id])
-  companyId     String?
-  company       Company?     @relation(fields: [companyId], references: [id])
-  applicationId String?
-  application   Application? @relation(fields: [applicationId], references: [id])
-  addedAt       DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  tags          Tag[]        @relation("ResearchTags")
-}
-
-// ---------------------------------------------------------------------------
-// Notes (freeform, attachable anywhere)
-// ---------------------------------------------------------------------------
-
-model Note {
-  id            String       @id @default(cuid())
-  title         String?
-  content       String
-  pinned        Boolean      @default(false)
-  applicationId String?
-  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  companyId     String?
-  company       Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  contactId     String?
-  contact       Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  countryId     String?
-  country       Country?     @relation(fields: [countryId], references: [id])
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  tags          Tag[]        @relation("NoteTags")
-}
-
-// ---------------------------------------------------------------------------
-// Tags
-// ---------------------------------------------------------------------------
-
-model Tag {
-  id    String @id @default(cuid())
-  name  String @unique
-  color String @default("#6366f1")
-
-  applications  Application[]  @relation("ApplicationTags")
-  companies     Company[]      @relation("CompanyTags")
-  contacts      Contact[]      @relation("ContactTags")
-  documents     Document[]     @relation("DocumentTags")
-  researchItems ResearchItem[] @relation("ResearchTags")
-  notes         Note[]         @relation("NoteTags")
-}
-
-// ---------------------------------------------------------------------------
-// Weekly review
-// ---------------------------------------------------------------------------
-
-model WeeklyReview {
-  id                  String   @id @default(cuid())
-  weekStart           DateTime @unique // Monday 00:00 of that week
-  applicationsSent    Int      @default(0)
-  companiesResearched Int      @default(0)
-  peopleContacted     Int      @default(0)
-  responsesReceived   Int      @default(0)
-  callsHeld           Int      @default(0)
-  interviewsHeld      Int      @default(0)
-  refusals            Int      @default(0)
-  newOpportunities    Int      @default(0)
-  whatWorked          String?
-  whatDidntWork       String?
-  prioritiesNextWeek  String?
-  personalNotes       String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-}
-
-// ---------------------------------------------------------------------------
-// Saved views (tracker filters)
-// ---------------------------------------------------------------------------
-
-model SavedView {
-  id             String   @id @default(cuid())
-  name           String
-  entity         String   @default("APPLICATION")
-  filters        String // JSON
-  sort           String? // JSON
-  visibleColumns String? // JSON
-  createdAt      DateTime @default(now())
 }
 
 // ---------------------------------------------------------------------------
@@ -634,7 +297,7 @@ model Profile {
 
   // CV — the source of truth the AI is grounded on. cvRawText is the
   // extracted plain text (kept even if the Document is later deleted), so
-  // "Improve my CV" / cover letters / the assistant always have it at hand.
+  // "Improve my CV" / cover letters / interview prep always have it at hand.
   cvDocumentId String?
   cvRawText    String?
   cvParsedAt   DateTime?
@@ -681,141 +344,4 @@ model JobAnalysis {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-// ---------------------------------------------------------------------------
-// Discover — real, modular job aggregation (Greenhouse/Lever public APIs,
-// RSS feeds, and manual CSV/JSON import). Every JobListing row traces back
-// to a real JobSource; nothing here is fabricated or simulated.
-// ---------------------------------------------------------------------------
-
-model JobSource {
-  id   String @id @default(cuid())
-  type String // GREENHOUSE | LEVER | RSS | JSON_ENDPOINT | CSV_URL | MANUAL_IMPORT
-  name String // display name, e.g. "GitLab (Greenhouse)" or "Personal RSS feed"
-
-  // JSON, shape depends on `type` — e.g. {"boardToken":"gitlab"} for
-  // GREENHOUSE, {"companyName":"palantir"} for LEVER, {"feedUrl":"..."} for
-  // RSS/JSON_ENDPOINT/CSV_URL. No API keys are needed for the providers
-  // shipped today (Greenhouse/Lever's job-board APIs are public); if a
-  // future source needs one, store it in Setting the same way as the
-  // DeepSeek key — never inline here in plain application code.
-  config String
-
-  enabled Boolean @default(true)
-
-  status        String    @default("UNKNOWN") // OK | ERROR | UNKNOWN
-  lastSyncedAt  DateTime?
-  lastSyncError String?
-  jobCount      Int       @default(0) // cached count of active listings from this source
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  listings JobListing[]
-
-  @@index([type])
-}
-
-model JobListing {
-  id String @id @default(cuid())
-
-  sourceId    String
-  source      JobSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  sourceJobId String // the id/slug from the source's own system
-  sourceUrl   String // canonical link back to the original posting
-
-  title       String
-  companyName String
-  description String? // plain-text, HTML stripped
-  rawText     String? // fuller text kept for extraction/search/matching, truncated
-
-  cityName     String?
-  countryName  String?
-  remoteType   String? // REMOTE | HYBRID | ONSITE
-  sector       String?
-  contractType String?
-  isInternship Boolean @default(false)
-
-  postedAt       DateTime?
-  expiresAt      DateTime?
-  startDate      DateTime?
-  durationMonths Int?
-
-  salaryAmount   Float?
-  salaryCurrency String?
-
-  requiredEducationLevel  String?
-  requiredExperienceYears Int?
-  requiredSkills          String? // JSON array of strings
-  requiredLanguages       String? // JSON array of strings
-  visaSponsorship         Boolean? // null = not mentioned/unknown
-  tags                    String? // JSON array of strings
-
-  status String @default("ACTIVE") // ACTIVE | EXPIRED | UNKNOWN — never deleted on disappearance, just marked
-
-  // Deduplication: a duplicate points at the primary listing it was merged
-  // into; the primary caches how many sources it was found on.
-  duplicateOfId     String?
-  duplicateOf       JobListing?  @relation("Duplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
-  duplicates        JobListing[] @relation("Duplicates")
-  foundSourcesCount Int          @default(1)
-
-  // Step 1 — local, deterministic pre-score. Reuses the exact same
-  // computeJobMatch/computeEligibility engine as Opportunities (never an
-  // AI call), computed at ingest and recomputed whenever the profile
-  // changes — this is what makes scoring thousands of listings cheap.
-  matchScore                     Int?
-  matchBreakdown                 String? // JSON array of ScoreFactor
-  strengths                      String? // JSON array of strings
-  watchouts                      String? // JSON array of strings
-  missingSkills                  String? // JSON array of strings
-  recommendation                 String?
-  eligibilityStatus              String?
-  eligibilityNotes               String? // JSON array of strings
-  scoreProfileUpdatedAtSnapshot  DateTime?
-
-  // Step 2 — on-demand AI-enhanced extraction, only run for listings the
-  // user actually opens/analyzes (reuses extractJobPostingWithAI).
-  aiEnhanced   Boolean   @default(false)
-  aiAnalyzedAt DateTime?
-
-  // Set once "Save" turns this into a tracked Opportunity, so re-syncing
-  // never creates a second one for the same listing.
-  linkedApplicationId String? @unique
-
-  discoveredAt DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([sourceId, sourceJobId])
-  @@index([status])
-  @@index([isInternship])
-  @@index([countryName])
-  @@index([cityName])
-  @@index([postedAt])
-  @@index([matchScore])
-  @@index([duplicateOfId])
-  @@index([companyName])
-}
-
-model SavedSearch {
-  id      String  @id @default(cuid())
-  name    String
-  query   String? // free-text keywords
-  filters String // JSON: {countries, cities, industries, remoteType, minMatch, visaFriendly, sourceIds, deadlineWithinDays, ...}
-  sort    String  @default("match")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model JobWatch {
-  id          String  @id @default(cuid())
-  keyword     String?
-  countryName String?
-  cityName    String?
-  sector      String?
-
-  lastNotifiedAt DateTime?
-  createdAt      DateTime  @default(now())
 }

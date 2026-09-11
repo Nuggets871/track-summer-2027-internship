@@ -55,7 +55,7 @@ export function AiSettingsForm({ status }: { status: Status }) {
       <CardHeader>
         <CardTitle>Intelligence artificielle</CardTitle>
         <CardDescription>
-          Utilisée pour l&apos;extraction avancée d&apos;offres, les lettres de motivation, l&apos;analyse de CV et l&apos;assistant.
+          Utilisée pour l&apos;extraction avancée d&apos;offres, les lettres de motivation, l&apos;analyse de CV et la préparation d&apos;entretien.
           La clé reste stockée localement dans ta base de données — jamais dans le code, jamais journalisée.
         </CardDescription>
       </CardHeader>

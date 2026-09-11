@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import Papa from "papaparse";
+import path from "node:path";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { LEGACY_STAGE_KEY_MAP } from "@/lib/constants";
 import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
@@ -11,26 +13,17 @@ const EXPORTABLE_MODELS = [
   "city",
   "pipelineStage",
   "company",
-  "contact",
   "application",
   "jobAnalysis",
-  "interaction",
-  "task",
-  "event",
   "document",
   "coverLetter",
-  "interview",
-  "interviewPrep",
-  "question",
-  "offer",
-  "researchItem",
-  "note",
-  "tag",
-  "weeklyReview",
-  "savedView",
   "setting",
   "profile",
 ] as const;
+
+// Guards against a hostile or accidental multi-gigabyte import freezing the
+// server while it is parsed in memory.
+const MAX_BACKUP_BYTES = 25_000_000;
 
 /**
  * Full JSON export of every table — the "backup" the brief asks for so a
@@ -59,7 +52,21 @@ export async function exportFullBackup() {
  * this is a destructive, irreversible action from the app's point of view.
  */
 export async function importFullBackup(jsonText: string) {
-  const parsed = JSON.parse(jsonText);
+  if (typeof jsonText !== "string" || jsonText.length > MAX_BACKUP_BYTES) {
+    throw new Error("Backup invalide ou trop volumineux.");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    throw new Error("Backup invalide : JSON illisible.");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Backup invalide : structure inattendue.");
+  }
+  const source = parsed as Record<string, unknown>;
+
   const currentSecret = await prisma.setting.findUnique({ where: { id: "singleton" }, select: { deepseekApiKey: true } });
 
   await prisma.$transaction(async (tx) => {
@@ -72,10 +79,13 @@ export async function importFullBackup(jsonText: string) {
     }
     // Recreate in dependency order (parents first).
     for (const model of EXPORTABLE_MODELS) {
-      const rows = parsed[model];
+      const rows = source[model];
       if (!Array.isArray(rows) || rows.length === 0) continue;
-      for (const row of rows) {
-        const cleaned = reviveDates(row);
+      for (const rawRow of rows) {
+        if (!rawRow || typeof rawRow !== "object" || Array.isArray(rawRow)) continue;
+        const cleaned = reviveDates(rawRow as Record<string, unknown>);
+        // Every row needs a stable id; a backup without one is malformed.
+        if (typeof cleaned.id !== "string" || cleaned.id.length === 0) continue;
         if (model === "setting") {
           // A backup cannot overwrite or erase the locally configured key.
           delete cleaned.deepseekApiKey;
@@ -83,6 +93,13 @@ export async function importFullBackup(jsonText: string) {
         } else if (model === "profile") {
           await tx.profile.upsert({ where: { id: cleaned.id }, create: cleaned, update: cleaned });
         } else {
+          // Stored file paths must stay inside /uploads — never trust a
+          // backup for something that feeds a filesystem read.
+          if (model === "document") {
+            const safeName = path.basename(String(cleaned.filePath ?? ""));
+            if (!safeName) continue;
+            cleaned.filePath = safeName;
+          }
           // @ts-expect-error - dynamic model access
           await tx[model].create({ data: cleaned });
         }
@@ -110,16 +127,13 @@ function reviveDates<T extends Record<string, unknown>>(obj: T): T {
 }
 
 /**
- * Deletes every row flagged isDemo=true (companies/applications/tasks/events
- * seeded by `npm run db:seed`). Cascades take care of their child rows
- * (interactions, documents, interviews...). Never touches user-created data.
+ * Deletes every demo application flagged isDemo=true (seeded by
+ * `npm run db:seed`). Cascades take care of their child rows (job analysis,
+ * cover letter, documents). Never touches user-created data.
  */
 export async function clearDemoData() {
   await prisma.$transaction([
-    prisma.task.deleteMany({ where: { isDemo: true } }),
-    prisma.event.deleteMany({ where: { isDemo: true } }),
     prisma.application.deleteMany({ where: { isDemo: true } }),
-    prisma.contact.deleteMany({ where: { isDemo: true } }),
     prisma.company.deleteMany({ where: { isDemo: true } }),
   ]);
   revalidatePath("/", "layout");
@@ -203,45 +217,72 @@ export async function exportApplicationsCsv() {
   return Papa.unparse({ fields: [...CSV_COLUMNS], data: rows });
 }
 
+const csvRowSchema = z.object({
+  title: z.string().trim().min(1),
+  company: z.string().trim().min(1),
+  country: z.string().optional(),
+  city: z.string().optional(),
+  sector: z.string().optional(),
+  source: z.string().optional(),
+  status: z.string().optional(),
+  priority: z.string().optional(),
+  appliedAt: z.string().optional(),
+  deadline: z.string().optional(),
+  salaryAmount: z.string().optional(),
+  salaryCurrency: z.string().optional(),
+  jobUrl: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+function safeDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export async function importApplicationsCsv(rows: Record<string, string>[]) {
   const stages = await prisma.pipelineStage.findMany({ where: { kind: "APPLICATION" } });
   const defaultStage = stages.find((s) => s.key === "SAVED") ?? stages[0];
+  if (!defaultStage) throw new Error("Aucun statut de candidature configuré.");
   let imported = 0;
 
   for (const row of rows) {
-    if (!row.title || !row.company) continue;
+    const parsed = csvRowSchema.safeParse(row);
+    if (!parsed.success) continue;
+    const r = parsed.data;
 
     const company =
-      (await prisma.company.findFirst({ where: { name: row.company } })) ??
-      (await prisma.company.create({ data: { name: row.company, isDemo: false } }));
+      (await prisma.company.findFirst({ where: { name: r.company } })) ??
+      (await prisma.company.create({ data: { name: r.company, isDemo: false } }));
 
     let countryId: string | undefined;
-    if (row.country) {
+    if (r.country) {
       const country = await prisma.country.upsert({
-        where: { name: row.country },
-        create: { name: row.country },
+        where: { name: r.country },
+        create: { name: r.country },
         update: {},
       });
       countryId = country.id;
     }
 
-    const status = stages.find((s) => s.label.toLowerCase() === row.status?.toLowerCase());
+    const status = stages.find((s) => s.label.toLowerCase() === r.status?.toLowerCase());
+    const salaryAmount = r.salaryAmount ? Number(r.salaryAmount) : null;
 
     await prisma.application.create({
       data: {
-        title: row.title,
+        title: r.title,
         companyId: company.id,
         countryId,
-        sector: row.sector || null,
-        source: row.source || null,
+        sector: r.sector || null,
+        source: r.source || null,
         statusId: status?.id ?? defaultStage.id,
-        priority: row.priority || "MEDIUM",
-        appliedAt: row.appliedAt ? new Date(row.appliedAt) : null,
-        deadline: row.deadline ? new Date(row.deadline) : null,
-        salaryAmount: row.salaryAmount ? Number(row.salaryAmount) : null,
-        salaryCurrency: row.salaryCurrency || "EUR",
-        jobUrl: row.jobUrl || null,
-        notes: row.notes || null,
+        priority: r.priority || "MEDIUM",
+        appliedAt: safeDate(r.appliedAt),
+        deadline: safeDate(r.deadline),
+        salaryAmount: salaryAmount !== null && Number.isFinite(salaryAmount) ? salaryAmount : null,
+        salaryCurrency: r.salaryCurrency || "EUR",
+        jobUrl: r.jobUrl || null,
+        notes: r.notes || null,
       },
     });
     imported += 1;

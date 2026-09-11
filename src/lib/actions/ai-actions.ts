@@ -6,7 +6,6 @@ import { getProfile } from "@/lib/data/profile";
 import { generateCoverLetter, type CoverLetterTone, type CoverLetterLanguage } from "@/lib/ai/prompts/cover-letter";
 import { optimizeCvForJob, type CvOptimizationResult } from "@/lib/ai/prompts/cv-optimization";
 import { generateInterviewPrep } from "@/lib/ai/prompts/interview-prep";
-import { askAssistant } from "@/lib/ai/prompts/assistant";
 import { aiChat, isAiConfigured } from "@/lib/ai/provider";
 import { safeJsonParse } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/ai/types";
@@ -95,7 +94,11 @@ export async function refineCoverLetter(applicationId: string, instruction: stri
   if (existing.content) revisions.push(existing.content);
   const history = safeJsonParse<ChatMessage[]>(existing.chatHistory, []);
   history.push({ role: "user", content: instruction }, { role: "assistant", content });
-  const nextVersion = `v${revisions.length + 1}`;
+  // revisionHistory is capped below, so its length alone would freeze the
+  // version at v21 forever once 20 revisions exist. Increment the stored
+  // version instead, which is monotonic.
+  const currentVersion = Number.parseInt((existing.version ?? "v1").replace(/^v/i, ""), 10);
+  const nextVersion = `v${Number.isFinite(currentVersion) ? currentVersion + 1 : revisions.length + 1}`;
   const letter = await prisma.coverLetter.update({
     where: { applicationId },
     data: { content, version: nextVersion, revisionHistory: JSON.stringify(revisions.slice(-20)), chatHistory: JSON.stringify(history.slice(-20)) },
@@ -232,30 +235,6 @@ export async function generateInterviewPrepForApplication(applicationId: string)
   return content;
 }
 
-// --- Assistant --------------------------------------------------------
-
-export async function askAssistantAction(history: ChatMessage[]) {
-  const [profile, applications] = await Promise.all([
-    getProfile(),
-    prisma.application.findMany({
-      include: { company: true, status: true, jobAnalysis: { select: { matchScore: true, eligibilityStatus: true } } },
-      orderBy: { updatedAt: "desc" },
-      take: 40,
-    }),
-  ]);
-
-  const oppLines = applications.map((a) => {
-    const match = a.jobAnalysis?.matchScore != null ? `${a.jobAnalysis.matchScore}%` : "non analysé";
-    return `- ${a.company.name} — ${a.title} — statut: ${a.status.label} — match: ${match}${a.deadline ? ` — deadline: ${a.deadline.toISOString().slice(0, 10)}` : ""}`;
-  });
-
-  const contextSummary = `${buildProfileContext(profile, { includeContact: true, includeCv: true })}\n\nOPPORTUNITÉS (${applications.length}) :\n${oppLines.join("\n") || "Aucune opportunité enregistrée."}`;
-
-  const reply = await askAssistant(history, contextSummary);
-  if (!reply) {
-    throw new Error("L'assistant IA n'est pas disponible. Configurez une clé DeepSeek dans Paramètres > AI.");
-  }
-  return reply;
-}
+// --- Shared -----------------------------------------------------------
 
 export { isAiConfigured };
