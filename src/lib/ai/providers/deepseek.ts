@@ -33,7 +33,13 @@ export function createDeepSeekProvider(getApiKey: () => Promise<string | null>):
         return null;
       }
       const data = await res.json();
-      return data?.choices?.[0]?.message?.content ?? null;
+      const choice = data?.choices?.[0];
+      // A truncated reply is usually invalid JSON; surface it so a too-low
+      // max_tokens is diagnosable instead of silently degrading to a fallback.
+      if (choice?.finish_reason === "length") {
+        console.warn(`DeepSeek response truncated (max_tokens=${opts.maxTokens ?? DEFAULT_MAX_TOKENS}); raise it if content is missing.`);
+      }
+      return choice?.message?.content ?? null;
     } catch (err) {
       console.error("DeepSeek API call failed:", err instanceof Error ? err.message : err);
       return null;

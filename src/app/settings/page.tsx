@@ -1,13 +1,15 @@
 import { getAiKeyStatus } from "@/lib/actions/ai-settings";
+import { getTrashedApplications } from "@/lib/data/applications";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AiSettingsForm } from "@/components/settings/ai-settings-form";
 import { DataBackupPanel } from "@/components/settings/data-backup-panel";
 import { ThemeSettingsCard } from "@/components/settings/theme-settings-card";
+import { TrashPanel } from "@/components/settings/trash-panel";
 
 export const metadata = { title: "Paramètres" };
 
 export default async function SettingsPage() {
-  const aiStatus = await getAiKeyStatus();
+  const [aiStatus, trashed] = await Promise.all([getAiKeyStatus(), getTrashedApplications()]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -29,7 +31,17 @@ export default async function SettingsPage() {
           <ThemeSettingsCard />
         </TabsContent>
         <TabsContent value="data">
-          <DataBackupPanel />
+          <div className="flex flex-col gap-4">
+            <DataBackupPanel />
+            <TrashPanel
+              items={trashed.map((application) => ({
+                id: application.id,
+                title: application.title,
+                companyName: application.company.name,
+                deletedAt: application.deletedAt,
+              }))}
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

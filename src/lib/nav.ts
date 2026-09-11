@@ -1,4 +1,4 @@
-import { Home, Briefcase, User, Settings, type LucideIcon } from "lucide-react";
+import { Home, Briefcase, User, Settings, Calendar, Inbox, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -10,6 +10,8 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Accueil", href: "/", icon: Home },
   { label: "Opportunités", href: "/opportunities", icon: Briefcase },
+  { label: "Calendrier", href: "/calendar", icon: Calendar },
+  { label: "Pistes", href: "/inbox", icon: Inbox },
   { label: "Profil", href: "/profile", icon: User },
 ];
 

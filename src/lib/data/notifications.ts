@@ -23,7 +23,7 @@ export async function getSmartAlerts(): Promise<SmartAlert[]> {
   const alerts: SmartAlert[] = [];
 
   const activeApplications = await prisma.application.findMany({
-    where: { status: { key: { notIn: TERMINAL_STAGE_KEYS } } },
+    where: { deletedAt: null, status: { key: { notIn: TERMINAL_STAGE_KEYS } } },
     include: { company: true, status: true },
   });
 

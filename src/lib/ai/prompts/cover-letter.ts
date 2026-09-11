@@ -1,4 +1,5 @@
 import { aiChat } from "@/lib/ai/provider";
+import { NEVER_INVENT_RULE, UNTRUSTED_DATA_RULE, wrapUntrusted } from "@/lib/ai/prompts/shared";
 
 export type CoverLetterTone = "PROFESSIONAL" | "NATURAL" | "CONCISE" | "PERSONALIZED";
 export type CoverLetterLanguage = "FR" | "EN";
@@ -25,8 +26,7 @@ export type CoverLetterInput = {
   refineInstruction?: string;
 };
 
-const GROUNDING_RULE =
-  "N'invente jamais une expérience, un diplôme, une compétence, un résultat chiffré ou une motivation qui n'est pas mentionné dans le dossier candidat ou dans la lettre de référence. N'affirme jamais qu'une compétence manquante est acquise.";
+const GROUNDING_RULE = `${NEVER_INVENT_RULE} Le dossier candidat et la lettre de référence constituent la source de vérité.`;
 
 const NATURAL_STYLE_RULES = `STYLE HUMAIN ET SPÉCIFIQUE :
 - N'utilise aucun tiret cadratin (—).
@@ -38,13 +38,17 @@ const NATURAL_STYLE_RULES = `STYLE HUMAIN ET SPÉCIFIQUE :
 const FORMAT_RULE = `FORMAT :
 - commence directement par la formule d'appel adaptée au destinataire ;
 - termine par une formule de politesse suivie du nom du candidat ;
-- n'ajoute ni bloc de coordonnées en tête, ni date, ni adresse de l'entreprise : l'application les ajoute au moment de l'export Word/PDF.`;
+- n'ajoute ni bloc de coordonnées en tête, ni date, ni adresse de l'entreprise : l'application les ajoute au moment de l'export Word/PDF.
+- vise environ 300 mots (sauf pour le ton concis) : une page, dense mais lisible.`;
 
 function referenceBlock(referenceLetter: string): string {
-  return `LETTRE DE RÉFÉRENCE DU CANDIDAT (sa propre lettre passée) :
-<<<${referenceLetter}>>>
+  return `${wrapUntrusted("reference_letter", referenceLetter)}
 
 Cette lettre est une source de vérité, au même titre que le dossier candidat. Sers-t'en comme modèle de voix, de structure et de rythme, et réutilise les faits, expériences et formulations qui y figurent quand ils sont pertinents pour l'offre visée. N'en recopie jamais une phrase spécifique à l'entreprise ou au poste qui y étaient visés : adapte le contenu à la nouvelle offre.`;
+}
+
+function offerBlock(input: CoverLetterInput): string {
+  return `ENTREPRISE : ${input.companyName}\nPOSTE : ${input.title}\nDESCRIPTION DE L'OFFRE :\n${wrapUntrusted("job_description", input.jobDescription ?? "non précisée")}`;
 }
 
 export async function generateCoverLetter(input: CoverLetterInput): Promise<string | null> {
@@ -56,11 +60,11 @@ export async function generateCoverLetter(input: CoverLetterInput): Promise<stri
       [
         {
           role: "system",
-          content: `Tu réécris un brouillon de lettre de motivation existant selon une instruction précise. ${GROUNDING_RULE} ${NATURAL_STYLE_RULES} ${FORMAT_RULE} ${languageInstruction} Réponds uniquement avec le texte de la lettre.`,
+          content: `Tu réécris un brouillon de lettre de motivation existant selon une instruction précise. ${GROUNDING_RULE} ${NATURAL_STYLE_RULES} ${FORMAT_RULE} ${UNTRUSTED_DATA_RULE} ${languageInstruction} Réponds uniquement avec le texte de la lettre.`,
         },
         {
           role: "user",
-          content: `DOSSIER CANDIDAT :\n${input.profileSummary}\n\n${reference}\n\nOFFRE :\n${input.companyName} — ${input.title}\n${input.jobDescription ?? "Description non précisée"}\n\nBROUILLON ACTUEL :\n${input.previousDraft}\n\nINSTRUCTION DE RÉÉCRITURE : ${input.refineInstruction}`,
+          content: `DOSSIER CANDIDAT :\n${wrapUntrusted("profile", input.profileSummary)}\n\n${reference}\n\n${offerBlock(input)}\n\nBROUILLON ACTUEL :\n${wrapUntrusted("draft", input.previousDraft)}\n\nINSTRUCTION DE RÉÉCRITURE : ${input.refineInstruction}`,
         },
       ],
       { temperature: 0.4, maxTokens: 1_500 },
@@ -71,11 +75,11 @@ export async function generateCoverLetter(input: CoverLetterInput): Promise<stri
   const prompt = `Rédige une lettre de motivation complète pour ce stage, avec ${TONE_INSTRUCTIONS[input.tone]}.
 ${languageInstruction}
 
-Entreprise : ${input.companyName}
-Poste : ${input.title}
-Description de l'offre : ${input.jobDescription ?? "non précisée"}
+${offerBlock(input)}
 Compétences du candidat qui correspondent à l'offre : ${input.matchedSkills.join(", ") || "non précisées"}
-Profil du candidat : ${input.profileSummary}
+
+DOSSIER CANDIDAT :
+${wrapUntrusted("profile", input.profileSummary)}
 
 ${reference}
 

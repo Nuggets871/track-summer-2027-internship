@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getApplicationDetail } from "@/lib/data/applications";
 import { getProfile } from "@/lib/data/profile";
 import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
+import { getApplicationTimeline } from "@/lib/data/activity";
 import { isAiConfigured } from "@/lib/ai/provider";
 import { safeJsonParse } from "@/lib/utils";
 import { OpportunityHeader } from "@/components/opportunities/opportunity-header";
@@ -11,14 +12,18 @@ import { OpportunityApplication } from "@/components/opportunities/opportunity-a
 import { OpportunityAiActions } from "@/components/opportunities/opportunity-ai-actions";
 import { OpportunityStatusShortcut } from "@/components/opportunities/opportunity-status-shortcut";
 import { OpportunityChat } from "@/components/opportunities/opportunity-chat";
+import { OpportunityTimeline } from "@/components/opportunities/opportunity-timeline";
+import { OpportunityDocuments } from "@/components/opportunities/opportunity-documents";
+import { InterviewChecklist } from "@/components/opportunities/interview-checklist";
 
 export default async function OpportunityDetailPage({ params }: PageProps<"/opportunities/[id]">) {
   const { id } = await params;
-  const [application, profile, stages, aiConfigured] = await Promise.all([
+  const [application, profile, stages, aiConfigured, timeline] = await Promise.all([
     getApplicationDetail(id),
     getProfile(),
     ensureApplicationPipelineStages(),
     isAiConfigured(),
+    getApplicationTimeline(id),
   ]);
 
   if (!application) notFound();
@@ -51,6 +56,17 @@ export default async function OpportunityDetailPage({ params }: PageProps<"/oppo
         <OpportunityFit application={application} jobAnalysis={jobAnalysis} profileStale={profileStale} />
       )}
       <OpportunityApplication application={application} profile={profile} />
+      <OpportunityDocuments
+        applicationId={application.id}
+        documents={application.documents.map((document) => ({
+          id: document.id,
+          name: document.name,
+          category: document.category,
+          fileSize: document.fileSize,
+        }))}
+      />
+      <InterviewChecklist applicationId={application.id} initialItems={safeJsonParse(application.interviewChecklist, [])} />
+      <OpportunityTimeline activities={timeline} />
       <OpportunityChat applicationId={application.id} initialHistory={application.aiChatHistory} aiConfigured={aiConfigured} />
       <OpportunityAiActions
         applicationId={application.id}

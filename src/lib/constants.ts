@@ -44,14 +44,6 @@ export const INTERVIEW_STAGE_KEYS = ["INTERVIEW"];
 export const SENT_OR_LATER_STAGE_KEYS = ["APPLIED", "INTERVIEW", "OFFER", "REJECTED"];
 export const RESPONSE_STAGE_KEYS = ["INTERVIEW", "OFFER", "REJECTED"];
 
-export const PRIORITY_LEVELS = [
-  { value: "LOW", label: "Basse", color: "#94a3b8" },
-  { value: "MEDIUM", label: "Moyenne", color: "#60a5fa" },
-  { value: "HIGH", label: "Haute", color: "#fb923c" },
-  { value: "DREAM", label: "Dream", color: "#f472b6" },
-] as const;
-export type PriorityLevel = (typeof PRIORITY_LEVELS)[number]["value"];
-
 export const TASK_PRIORITY_LEVELS = [
   { value: "LOW", label: "Basse", color: "#94a3b8" },
   { value: "MEDIUM", label: "Moyenne", color: "#60a5fa" },

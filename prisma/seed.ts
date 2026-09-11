@@ -62,7 +62,6 @@ async function main() {
       preferredCurrencies: JSON.stringify(DEFAULT_CURRENCIES),
       preferredCountries: JSON.stringify(["Royaume-Uni", "Singapour", "Suisse"]),
       preferredSectors: JSON.stringify(["Finance", "Tech", "Conseil"]),
-      matchWeights: JSON.stringify(DEFAULT_MATCH_WEIGHTS),
     },
     update: {},
   });
@@ -131,19 +130,19 @@ async function main() {
 
   // 4. Countries ------------------------------------------------------------
   const countryDefs = [
-    { name: "Royaume-Uni", code: "GB", region: "Europe", personalPreference: 5 },
-    { name: "Singapour", code: "SG", region: "Asie", personalPreference: 4 },
-    { name: "Suisse", code: "CH", region: "Europe", personalPreference: 5 },
-    { name: "Allemagne", code: "DE", region: "Europe", personalPreference: 4 },
-    { name: "Pays-Bas", code: "NL", region: "Europe", personalPreference: 4 },
-    { name: "États-Unis", code: "US", region: "Amérique du Nord", personalPreference: 3 },
-    { name: "Canada", code: "CA", region: "Amérique du Nord", personalPreference: 4 },
+    { name: "Royaume-Uni" },
+    { name: "Singapour" },
+    { name: "Suisse" },
+    { name: "Allemagne" },
+    { name: "Pays-Bas" },
+    { name: "États-Unis" },
+    { name: "Canada" },
   ];
   const countries: Record<string, string> = {};
   for (const c of countryDefs) {
     const country = await prisma.country.upsert({
       where: { name: c.name },
-      create: { name: c.name, code: c.code, region: c.region, personalPreference: c.personalPreference },
+      create: { name: c.name },
       update: {},
     });
     countries[c.name] = country.id;
@@ -168,19 +167,19 @@ async function main() {
 
   // 5. Companies --------------------------------------------------------------
   const companyDefs = [
-    { name: "Meridian Bank International", country: "Royaume-Uni", sector: "Finance", website: "https://meridianbank.example.com" },
-    { name: "Polaris FinTech", country: "Suisse", sector: "Finance", website: "https://polarisfintech.example.com" },
-    { name: "Vertex Analytics", country: "Singapour", sector: "Tech", website: "https://vertexanalytics.example.com" },
-    { name: "Vantage Point Consulting", country: "Royaume-Uni", sector: "Conseil", website: "https://vantagepoint.example.com" },
-    { name: "Nimbus Cloud Systems", country: "Pays-Bas", sector: "Tech", website: "https://nimbuscloud.example.com" },
-    { name: "Ironbridge Engineering", country: "Allemagne", sector: "Industrie", website: "https://ironbridge.example.com" },
-    { name: "Lumen Digital Ventures", country: "Canada", sector: "Tech", website: "https://lumendigital.example.com" },
-    { name: "Kestrel Aerospace", country: "États-Unis", sector: "Aérospatial", website: "https://kestrelaero.example.com" },
+    { name: "Meridian Bank International", country: "Royaume-Uni", sector: "Finance" },
+    { name: "Polaris FinTech", country: "Suisse", sector: "Finance" },
+    { name: "Vertex Analytics", country: "Singapour", sector: "Tech" },
+    { name: "Vantage Point Consulting", country: "Royaume-Uni", sector: "Conseil" },
+    { name: "Nimbus Cloud Systems", country: "Pays-Bas", sector: "Tech" },
+    { name: "Ironbridge Engineering", country: "Allemagne", sector: "Industrie" },
+    { name: "Lumen Digital Ventures", country: "Canada", sector: "Tech" },
+    { name: "Kestrel Aerospace", country: "États-Unis", sector: "Aérospatial" },
   ];
   const companies: Record<string, string> = {};
   for (const c of companyDefs) {
     const company = await prisma.company.create({
-      data: { name: c.name, website: c.website, countryId: countries[c.country], sector: c.sector, isDemo: true },
+      data: { name: c.name, countryId: countries[c.country], sector: c.sector, isDemo: true },
     });
     companies[c.name] = company.id;
   }

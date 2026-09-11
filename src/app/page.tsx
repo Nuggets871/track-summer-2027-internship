@@ -5,11 +5,19 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getOpportunities } from "@/lib/data/applications";
 import { getSmartAlerts } from "@/lib/data/notifications";
+import { getProfile, isProfileMinimallyComplete } from "@/lib/data/profile";
+import { isAiConfigured } from "@/lib/ai/provider";
 import { TERMINAL_STAGE_KEYS } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
+import { OnboardingChecklist } from "@/components/home/onboarding-checklist";
 
 export default async function HomePage() {
-  const [opportunities, alerts] = await Promise.all([getOpportunities(), getSmartAlerts()]);
+  const [opportunities, alerts, profile, aiConfigured] = await Promise.all([
+    getOpportunities(),
+    getSmartAlerts(),
+    getProfile(),
+    isAiConfigured(),
+  ]);
 
   const analyzed = opportunities.filter((o) => o.jobAnalysis?.matchScore != null);
   const topMatches = [...analyzed]
@@ -26,6 +34,16 @@ export default async function HomePage() {
         <h1 className="text-xl font-semibold text-foreground">Bonjour 👋</h1>
         <p className="text-sm text-muted-foreground">Retrouve les opportunités qui méritent ton attention et leur prochaine action.</p>
       </div>
+
+      <OnboardingChecklist
+        steps={[
+          { label: "Compléter ton profil (formation, compétences)", href: "/profile", done: isProfileMinimallyComplete(profile) },
+          { label: "Ajouter ton CV", href: "/profile", done: !!profile.cvRawText },
+          { label: "Importer ta lettre de motivation de référence", href: "/profile", done: !!profile.coverLetterReference },
+          { label: "Ajouter ta première offre", href: "/opportunities", done: opportunities.length > 0 },
+          { label: "Configurer l'IA (optionnel)", href: "/settings", done: aiConfigured },
+        ]}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

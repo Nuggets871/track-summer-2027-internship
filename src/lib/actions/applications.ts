@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
+import { getSettings } from "@/lib/data/settings";
+import { logActivity } from "@/lib/data/activity";
 
 const emptyToNull = (v: unknown) => (v === "" || v === undefined ? null : v);
 
@@ -33,6 +35,7 @@ export type ApplicationUpdateInput = z.infer<typeof applicationUpdateSchema>;
 function revalidateApplicationPaths(id?: string) {
   revalidatePath("/", "layout");
   revalidatePath("/opportunities");
+  revalidatePath("/calendar");
   if (id) revalidatePath(`/opportunities/${id}`);
 }
 
@@ -101,34 +104,69 @@ export async function updateApplication(id: string, raw: ApplicationUpdateInput)
 }
 
 export async function updateApplicationStatus(id: string, statusId: string) {
-  await prisma.application.update({ where: { id }, data: { statusId } });
+  const [previous, next] = await Promise.all([
+    prisma.application.findUnique({ where: { id }, select: { status: { select: { label: true } } } }),
+    prisma.pipelineStage.findUnique({ where: { id: statusId }, select: { label: true } }),
+  ]);
+
+  await prisma.application.update({ where: { id }, data: { statusId, lastInteractionAt: new Date() } });
+
+  if (next && previous?.status.label !== next.label) {
+    await logActivity(id, "STATUS_CHANGE", `Statut : ${previous?.status.label ?? "?"} → ${next.label}`);
+  }
   revalidateApplicationPaths(id);
 }
 
 /**
- * One-click shortcut from "En préparation" to "Envoyée" — the single most
- * common transition once the cover letter/tracking info is ready. Also sets
- * appliedAt to today if it isn't already recorded, same convention as the
- * "already applied" import flow (never overwrites a date the user already
- * set on purpose, e.g. from the tracking form above).
+ * One-click shortcut from "En préparation" to "Envoyée". Records appliedAt,
+ * stamps the last interaction, and schedules the next follow-up from the
+ * `followUpRuleDays` setting so nothing silently slips through.
  */
 export async function markApplicationAsSent(id: string) {
-  const [stages, current] = await Promise.all([
+  const [stages, current, settings] = await Promise.all([
     ensureApplicationPipelineStages(),
     prisma.application.findUniqueOrThrow({ where: { id }, select: { appliedAt: true } }),
+    getSettings(),
   ]);
   const appliedStage = stages.find((s) => s.key === "APPLIED");
   if (!appliedStage) throw new Error('Statut "Envoyée" introuvable.');
 
+  const now = new Date();
+  const followUpAt = new Date(now.getTime() + settings.followUpRuleDays * 24 * 60 * 60 * 1000);
+
   await prisma.application.update({
     where: { id },
-    data: { statusId: appliedStage.id, appliedAt: current.appliedAt ?? new Date() },
+    data: {
+      statusId: appliedStage.id,
+      appliedAt: current.appliedAt ?? now,
+      lastInteractionAt: now,
+      followUpAt,
+      nextAction: "Relancer si aucune réponse",
+      nextActionDate: followUpAt,
+    },
   });
+  await logActivity(id, "APPLIED", `Candidature envoyée — relance planifiée dans ${settings.followUpRuleDays} jours`);
   revalidateApplicationPaths(id);
 }
 
+/** Soft delete: the row stops appearing everywhere but stays restorable. */
 export async function deleteApplication(id: string) {
+  await prisma.application.update({ where: { id }, data: { deletedAt: new Date() } });
+  revalidateApplicationPaths();
+}
+
+export async function restoreApplication(id: string) {
+  await prisma.application.update({ where: { id }, data: { deletedAt: null } });
+  revalidateApplicationPaths(id);
+}
+
+export async function purgeApplication(id: string) {
   await prisma.application.delete({ where: { id } });
+  revalidateApplicationPaths();
+}
+
+export async function purgeTrash() {
+  await prisma.application.deleteMany({ where: { deletedAt: { not: null } } });
   revalidateApplicationPaths();
 }
 
@@ -151,9 +189,10 @@ export type SpontaneousApplicationInput = z.infer<typeof spontaneousApplicationS
  * user's company research, target role and channel to build a grounded angle. */
 export async function createSpontaneousApplication(raw: SpontaneousApplicationInput) {
   const data = spontaneousApplicationSchema.parse(raw);
-  const [stages, company] = await Promise.all([
+  const [stages, company, settings] = await Promise.all([
     ensureApplicationPipelineStages(),
     prisma.company.findFirst({ where: { name: data.companyName } }),
+    getSettings(),
   ]);
   const companyRow = company ?? (await prisma.company.create({ data: { name: data.companyName } }));
   const sent = data.action === "ALREADY_APPLIED";
@@ -161,7 +200,7 @@ export async function createSpontaneousApplication(raw: SpontaneousApplicationIn
   if (!stage) throw new Error("Statut de candidature introuvable");
 
   const now = new Date();
-  const followUpAt = sent ? new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000) : null;
+  const followUpAt = sent ? new Date(now.getTime() + settings.followUpRuleDays * 24 * 60 * 60 * 1000) : null;
   const application = await prisma.application.create({
     data: {
       title: data.targetRole,
@@ -177,13 +216,14 @@ export async function createSpontaneousApplication(raw: SpontaneousApplicationIn
       source: "Candidature spontanée",
       discoveredAt: now,
       appliedAt: sent ? now : null,
-      contactedAt: sent ? now : null,
+      lastInteractionAt: now,
       followUpAt,
       nextAction: sent ? "Relancer si aucune réponse" : "Préparer le message de prise de contact",
       nextActionDate: followUpAt,
     },
   });
 
+  await logActivity(application.id, "CREATED", sent ? "Candidature spontanée enregistrée (déjà contactée)" : "Candidature spontanée créée");
   revalidateApplicationPaths(application.id);
   return application;
 }

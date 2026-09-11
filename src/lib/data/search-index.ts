@@ -13,6 +13,7 @@ const LIMIT = 1000;
 /** Global search only ever needs to find one thing: an opportunity. */
 export async function getSearchIndex(): Promise<SearchItem[]> {
   const applications = await prisma.application.findMany({
+    where: { deletedAt: null },
     take: LIMIT,
     include: { company: true, status: true },
     orderBy: { updatedAt: "desc" },

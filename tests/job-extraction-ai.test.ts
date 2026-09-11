@@ -10,10 +10,21 @@ vi.mock("@/lib/ai/provider", () => ({ aiChat: vi.fn() }));
 
 describe("extractJobPostingWithAI — date precision", () => {
   it("keeps a month/year-only date by defaulting to the 1st, instead of discarding it", async () => {
-    vi.mocked(aiChat).mockResolvedValue(JSON.stringify({ title: "Intern", startDate: "2026-09", deadline: "2026-10-15", evidence: { requiredSchedule: "starting September 2026" } }));
-    const result = await extractJobPostingWithAI("some raw text, starting September 2026");
+    vi.mocked(aiChat).mockResolvedValue(JSON.stringify({
+      title: "Intern",
+      startDate: "2026-09",
+      deadline: "2026-10-15",
+      evidence: { requiredSchedule: "starting September 2026", deadline: "October 15, 2026" },
+    }));
+    const result = await extractJobPostingWithAI("some raw text, starting September 2026, apply before October 15, 2026");
     expect(result?.startDate).toBe("2026-09-01");
     expect(result?.deadline).toBe("2026-10-15");
+  });
+
+  it("drops a deadline the model did not ground with an exact quote", async () => {
+    vi.mocked(aiChat).mockResolvedValue(JSON.stringify({ deadline: "2026-10-15" }));
+    const result = await extractJobPostingWithAI("some raw text with no date at all");
+    expect(result?.deadline).toBeNull();
   });
 
   it("discards a bare year with no month as too imprecise", async () => {

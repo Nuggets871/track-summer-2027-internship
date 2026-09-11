@@ -1,4 +1,5 @@
-import { aiChat } from "@/lib/ai/provider";
+import { aiJson } from "@/lib/ai/json";
+import { UNTRUSTED_DATA_RULE, wrapUntrusted } from "@/lib/ai/prompts/shared";
 import { normalizeSkillList } from "@/lib/skill-normalization";
 
 const SYSTEM_PROMPT = `Tu extrais fidèlement les informations d'un CV pour construire le dossier candidat utilisé par un assistant de candidature.
@@ -7,6 +8,7 @@ RÈGLES STRICTES :
 - N'extrais QUE ce qui est explicitement écrit dans le CV fourni.
 - N'invente jamais une expérience, une compétence, une langue ou une date absente du texte.
 - Si une information n'est pas présente, retourne null (ou un tableau vide) pour ce champ.
+- ${UNTRUSTED_DATA_RULE}
 - Une technologie citée dans une expérience, un projet ou une rubrique technique est une compétence du candidat. Parcours toutes les rubriques, pas uniquement une section nommée "Compétences".
 - Conserve les réalisations et le contexte technique dans les descriptions. Ne réduis pas une expérience ou un projet détaillé à son seul titre.
 - yearsOfExperience désigne uniquement l'expérience professionnelle du candidat. Calcule les périodes sans compter deux fois les périodes qui se chevauchent, arrondis à l'année inférieure, et ignore l'ancienneté des entreprises.
@@ -66,25 +68,18 @@ export type ParsedCvData = {
 export async function parseCvWithAI(rawText: string): Promise<ParsedCvData | null> {
   if (!rawText.trim()) return null;
 
-  const content = await aiChat(
+  const parsed = await aiJson(
     [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: rawText.slice(0, 15_000) },
+      { role: "user", content: wrapUntrusted("cv", rawText.slice(0, 15_000)) },
     ],
-    { jsonMode: true, temperature: 0.1 },
+    { temperature: 0.1, maxTokens: 2_400 },
   );
-  if (!content) return null;
-
-  try {
-    const raw = JSON.parse(content) as Record<string, unknown>;
-    return sanitize(raw);
-  } catch (err) {
-    console.error("Failed to parse AI CV-parsing response:", err);
-    return null;
-  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  return sanitizeParsedCv(parsed as Record<string, unknown>);
 }
 
-function sanitize(raw: Record<string, unknown>): ParsedCvData {
+export function sanitizeParsedCv(raw: Record<string, unknown>): ParsedCvData {
   const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
   const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const eduLevels = ["HIGH_SCHOOL", "ASSOCIATE", "BACHELOR", "MASTER", "PHD"];

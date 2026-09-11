@@ -42,9 +42,9 @@ Welcome to the Jungle, site carrières d'une entreprise...). L'application :
    strictement contrainte à ne jamais inventer une information absente du
    texte, sinon avec des règles heuristiques (mots-clés, regex) ;
 4. calcule un **Match Score** explicable et déterministe — jamais généré par
-   l'IA — pondéré par défaut ainsi : compétences 30 %, expérience 25 %,
+   l'IA — pondéré ainsi : compétences 30 %, expérience 25 %,
    formation 15 %, langues 10 %, localisation/disponibilité 10 %, préférences
-   personnelles 10 % (pondérable dans Paramètres > Matching) ;
+   personnelles 10 % ;
 5. évalue une **Eligibility** séparée du Match (langage toujours prudent,
    jamais une certitude — ex. fenêtre de date de diplôme incompatible) ;
 6. affiche un écran **"Voici ce que nous avons détecté"**, entièrement
@@ -109,6 +109,35 @@ espace dédié à cette candidature — la lettre reste liée à l'offre :
   (nom, coordonnées, date, destinataire, objet) ;
 - **Restaurer la version précédente** à tout moment.
 
+### 🗓️ Calendrier
+Une vue mois par mois qui récapitule **deadlines, relances et candidatures
+envoyées**, avec le compte par jour et le détail au clic. Le bouton
+**Export .ics** produit un flux importable dans n'importe quel agenda
+(Google Calendar, Apple Calendar...).
+
+### 📥 Pistes
+Une boîte de réception légère pour **capturer en lot** des URLs ou des
+« Entreprise — Rôle » collées les unes sous les autres, puis les trier plus
+tard : convertir en opportunité ou écarter. Rien n'est scrapé ici — c'est un
+sas de tri, pas une source automatique.
+
+### 📎 Documents, checklist & activité
+Sur chaque fiche opportunité :
+- **Documents** — rattache CV adapté, relevés, offre PDF, recommandations,
+  téléchargeables et supprimables ;
+- **Checklist d'entretien** — points à préparer, cochables et persistés
+  (reprend naturellement les « points faibles » générés par l'IA) ;
+- **Activité** — une timeline automatique des changements de statut, envois,
+  documents, lettres et prépas d'entretien.
+
+### 🗑️ Relances, corbeille et tri
+- **Relances automatiques** : passer une candidature à « Envoyée » planifie
+  une relance à `followUpRuleDays` (Paramètres) et la fait remonter dans les
+  alertes ;
+- **Corbeille** : une suppression est réversible (restauration ou purge
+  définitive depuis Paramètres) ;
+- **Tri ascendant/descendant** et export/import CSV des candidatures.
+
 ### 👤 Profil
 Informations personnelles (dont LinkedIn/GitHub/portfolio), formation,
 expériences, compétences, langues, préférences/disponibilité, et le CV — le
@@ -130,8 +159,9 @@ reste stockée localement (fichier dans `/uploads`, ignoré par Git).
   le code ni journalisée, avec repli automatique sur la variable d'environnement
   `DEEPSEEK_API_KEY` si aucune clé n'est enregistrée ;
 - **Apparence** — thème clair/sombre/système ;
-- **Confidentialité & données** — export/import JSON complet, suppression des
-  données de démo.
+- **Confidentialité & données** — export/import JSON complet, corbeille
+  (restauration/purge des opportunités supprimées), suppression des données
+  de démo.
 
 ### Transverse
 - **Recherche globale** (`Cmd/Ctrl+K`) : opportunités + navigation + création
@@ -379,7 +409,7 @@ La suite couvre :
 - **Contexte profil** (`tests/profile-context.test.ts`) : construction du
   contexte candidat transmis aux prompts.
 - **Match Score & Eligibility** (`tests/job-matching.test.ts`) : chaque
-  dimension du score, respect des pondérations personnalisées, détection
+  dimension du score, respect du barème par défaut, détection
   d'une fenêtre de date de diplôme incompatible.
 - **Workflows critiques** (`tests/actions.integration.test.ts`) : mise à jour
   d'une opportunité, changement de statut, export/import JSON complet,

@@ -11,6 +11,7 @@ import { safeJsonParse } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/ai/types";
 import { skillKey } from "@/lib/skill-normalization";
 import { buildProfileContext } from "@/lib/ai/profile-context";
+import { logActivity } from "@/lib/data/activity";
 
 async function buildProfileSummary() {
   const profile = await getProfile();
@@ -67,11 +68,11 @@ export async function generateCoverLetterForApplication(
     },
   });
 
+  await logActivity(applicationId, "COVER_LETTER", usedAi ? "Lettre de motivation générée par l'IA" : "Modèle de lettre généré");
   revalidatePath(`/opportunities/${applicationId}`);
   revalidatePath(`/opportunities/${applicationId}/letter`);
   return { letter, usedAi };
 }
-
 export async function refineCoverLetter(applicationId: string, instruction: string) {
   const existing = await prisma.coverLetter.findUnique({ where: { applicationId } });
   const application = await getApplicationContext(applicationId);
@@ -239,7 +240,11 @@ export async function improveCvForApplication(applicationId: string): Promise<Cv
     application.jobAnalysis?.rawExtractedText ??
     [application.jobAnalysis?.responsibilities, application.jobAnalysis?.qualifications].filter(Boolean).join("\n");
 
-  return optimizeCvForJob(`${buildProfileContext(profile, { includeContact: false, includeCv: false })}\n\nCV brut :\n${profile.cvRawText}`, jobDescription || application.title);
+  return optimizeCvForJob({
+    profileContext: buildProfileContext(profile, { includeContact: false, includeCv: false }),
+    cvRawText: profile.cvRawText,
+    jobDescription: jobDescription || application.title,
+  });
 }
 
 // --- Interview prep -------------------------------------------------------
@@ -247,17 +252,27 @@ export async function improveCvForApplication(applicationId: string): Promise<Cv
 export async function generateInterviewPrepForApplication(applicationId: string) {
   const application = await getApplicationContext(applicationId);
   const profileSummary = await buildProfileSummary();
+  const analysis = application.jobAnalysis;
+  const matchInsights = analysis
+    ? {
+        strengths: safeJsonParse<string[]>(analysis.strengths, []),
+        watchouts: safeJsonParse<string[]>(analysis.watchouts, []),
+        missingSkills: safeJsonParse<string[]>(analysis.missingSkills, []),
+      }
+    : undefined;
 
   const content = await generateInterviewPrep({
     companyName: application.company.name,
     title: application.title,
-    jobDescription: application.jobAnalysis?.rawExtractedText?.slice(0, 3000) ?? null,
+    jobDescription: analysis?.rawExtractedText?.slice(0, 3000) ?? null,
     profileSummary,
+    matchInsights,
   });
 
   if (!content) throw new Error("L'IA n'est pas disponible pour préparer cet entretien. Configurez une clé dans Paramètres > AI.");
 
   await prisma.application.update({ where: { id: applicationId }, data: { interviewPrepNotes: content } });
+  await logActivity(applicationId, "INTERVIEW_PREP", "Préparation d'entretien générée");
   revalidatePath(`/opportunities/${applicationId}`);
   return content;
 }

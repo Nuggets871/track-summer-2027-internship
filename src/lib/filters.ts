@@ -55,16 +55,28 @@ export function filterApplications<T extends FilterableApplication>(
 
 export type ApplicationSortKey = "updatedAt" | "deadline" | "company" | "match";
 
-export function sortApplications<T extends FilterableApplication>(applications: T[], sort: ApplicationSortKey): T[] {
+const NATURAL_DIRECTION: Record<ApplicationSortKey, "asc" | "desc"> = {
+  match: "desc",
+  updatedAt: "desc",
+  deadline: "asc",
+  company: "asc",
+};
+
+export function sortApplications<T extends FilterableApplication>(
+  applications: T[],
+  sort: ApplicationSortKey,
+  direction?: "asc" | "desc",
+): T[] {
+  const factor = (direction ?? NATURAL_DIRECTION[sort]) === "asc" ? 1 : -1;
   return [...applications].sort((a, b) => {
     if (sort === "deadline") {
       if (!a.deadline && !b.deadline) return 0;
       if (!a.deadline) return 1;
       if (!b.deadline) return -1;
-      return a.deadline.getTime() - b.deadline.getTime();
+      return (a.deadline.getTime() - b.deadline.getTime()) * factor;
     }
-    if (sort === "match") return (b.jobAnalysis?.matchScore ?? -1) - (a.jobAnalysis?.matchScore ?? -1);
-    if (sort === "company") return a.company.name.localeCompare(b.company.name);
-    return b.updatedAt.getTime() - a.updatedAt.getTime();
+    if (sort === "match") return ((a.jobAnalysis?.matchScore ?? -1) - (b.jobAnalysis?.matchScore ?? -1)) * factor;
+    if (sort === "company") return a.company.name.localeCompare(b.company.name) * factor;
+    return (a.updatedAt.getTime() - b.updatedAt.getTime()) * factor;
   });
 }

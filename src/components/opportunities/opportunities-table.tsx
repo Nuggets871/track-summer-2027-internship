@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import type { PipelineStage } from "@prisma/client";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,7 @@ export function OpportunitiesTable({
   const [statusId, setStatusId] = useState<string>("ALL");
   const [quickFilter, setQuickFilter] = useState<QuickFilterKey>("all");
   const [sort, setSort] = useState<ApplicationSortKey>("match");
+  const [direction, setDirection] = useState<"asc" | "desc">("desc");
   const [, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -54,11 +55,23 @@ export function OpportunitiesTable({
       needsAnalysis: quickFilter === "unscored" ? true : undefined,
       deadlineWithinDays: quickFilter === "deadline" ? 14 : undefined,
     });
-    rows = sortApplications(rows, sort);
+    rows = sortApplications(rows, sort, direction);
     return rows;
-  }, [opportunities, search, statusId, quickFilter, sort]);
+  }, [opportunities, search, statusId, quickFilter, sort, direction]);
 
-  const toggleSort = (key: ApplicationSortKey) => setSort(key);
+  const toggleSort = (key: ApplicationSortKey) => {
+    if (key === sort) {
+      setDirection((current) => (current === "asc" ? "desc" : "asc"));
+    } else {
+      setSort(key);
+      setDirection(key === "company" || key === "deadline" ? "asc" : "desc");
+    }
+  };
+
+  const renderSortIcon = (column: ApplicationSortKey) => {
+    if (column !== sort) return <ArrowUpDown className="size-3" />;
+    return direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />;
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -104,16 +117,16 @@ export function OpportunitiesTable({
             <TableHeader>
               <TableRow>
                 <TableHead onClick={() => toggleSort("company")} className="cursor-pointer select-none">
-                  <span className="inline-flex items-center gap-1">Entreprise <ArrowUpDown className="size-3" /></span>
+                  <span className="inline-flex items-center gap-1">Entreprise {renderSortIcon("company")}</span>
                 </TableHead>
                 <TableHead>Poste</TableHead>
                 <TableHead>Localisation</TableHead>
                 <TableHead onClick={() => toggleSort("match")} className="cursor-pointer select-none">
-                  <span className="inline-flex items-center gap-1">Match <ArrowUpDown className="size-3" /></span>
+                  <span className="inline-flex items-center gap-1">Match {renderSortIcon("match")}</span>
                 </TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead onClick={() => toggleSort("deadline")} className="cursor-pointer select-none">
-                  <span className="inline-flex items-center gap-1">Deadline <ArrowUpDown className="size-3" /></span>
+                  <span className="inline-flex items-center gap-1">Deadline {renderSortIcon("deadline")}</span>
                 </TableHead>
                 <TableHead>Prochaine action</TableHead>
               </TableRow>

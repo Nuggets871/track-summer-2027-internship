@@ -1,17 +1,25 @@
-import { aiChat } from "@/lib/ai/provider";
+import { aiJson } from "@/lib/ai/json";
+import { NEVER_INVENT_RULE, UNTRUSTED_DATA_RULE, wrapUntrusted } from "@/lib/ai/prompts/shared";
 
 const SYSTEM_PROMPT = `Tu compares le CV d'un candidat à une offre de stage et proposes des améliorations concrètes.
 
-RÈGLE ABSOLUE : ne suggère jamais d'ajouter une expérience, un diplôme, un projet, un résultat chiffré ou une compétence que le candidat n'a pas. Le dossier candidat structuré complète le texte du CV et constitue la source de vérité. Tu peux suggérer de reformuler, réordonner, ou mettre en avant des éléments RÉELLEMENT présents, et signaler les mots-clés réellement absents. Chaque réécriture doit conserver exactement le sens et les faits de l'original.
+RÈGLE ABSOLUE : ${NEVER_INVENT_RULE} Le dossier candidat structuré complète le texte du CV et constitue la source de vérité. Tu peux suggérer de reformuler, réordonner, ou mettre en avant des éléments RÉELLEMENT présents, et signaler les mots-clés réellement absents. Chaque réécriture doit conserver exactement le sens et les faits de l'original.
 
-Réponds UNIQUEMENT avec un objet JSON valide :
+${UNTRUSTED_DATA_RULE}
+
+Réponds UNIQUEMENT avec un objet JSON valide respectant exactement ce schéma :
 {
-  "highlights": string[],        // éléments déjà présents dans le CV à mettre davantage en avant
-  "missingKeywords": string[],   // mots-clés/compétences de l'offre absents du CV
+  "highlights": string[],
+  "missingKeywords": string[],
   "bulletRewrites": [{ "original": string, "improved": string }],
-  "mostRelevantExperiences": string[], // titres d'expériences du CV les plus pertinentes pour cette offre
-  "recommendedOrder": string[]   // ordre suggéré des sections/expériences pour ce poste
-}`;
+  "mostRelevantExperiences": string[],
+  "recommendedOrder": string[]
+}
+- highlights : éléments déjà présents dans le CV à mettre davantage en avant.
+- missingKeywords : mots-clés ou compétences de l'offre absents du CV.
+- bulletRewrites : reformulations de puces existantes, sans ajouter de fait nouveau.
+- mostRelevantExperiences : intitulés d'expériences du CV, repris tels quels.
+- recommendedOrder : ordre suggéré des sections ou expériences pour ce poste.`;
 
 export type CvOptimizationResult = {
   highlights: string[];
@@ -21,36 +29,43 @@ export type CvOptimizationResult = {
   recommendedOrder: string[];
 };
 
-export async function optimizeCvForJob(cvText: string, jobDescription: string): Promise<CvOptimizationResult | null> {
-  if (!cvText.trim() || !jobDescription.trim()) return null;
+export type CvOptimizationInput = {
+  profileContext: string;
+  cvRawText: string;
+  jobDescription: string;
+};
 
-  const content = await aiChat(
+export async function optimizeCvForJob(input: CvOptimizationInput): Promise<CvOptimizationResult | null> {
+  if (!input.cvRawText.trim() || !input.jobDescription.trim()) return null;
+
+  const parsed = await aiJson(
     [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `CV du candidat :\n${cvText.slice(0, 10_000)}\n\nOffre visée :\n${jobDescription.slice(0, 6_000)}` },
+      {
+        role: "user",
+        content: `DOSSIER CANDIDAT STRUCTURÉ :\n${wrapUntrusted("profile", input.profileContext.slice(0, 6_000))}\n\nCV :\n${wrapUntrusted("cv", input.cvRawText.slice(0, 10_000))}\n\nOFFRE VISÉE :\n${wrapUntrusted("job_description", input.jobDescription.slice(0, 6_000))}`,
+      },
     ],
-    { jsonMode: true, temperature: 0.2 },
+    { temperature: 0.2, maxTokens: 1_500 },
   );
-  if (!content) return null;
+  if (typeof parsed !== "object" || parsed === null) return null;
+  return sanitizeCvOptimization(parsed as Record<string, unknown>);
+}
 
-  try {
-    const raw = JSON.parse(content) as Record<string, unknown>;
-    const strArray = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
-    const rewrites = Array.isArray(raw.bulletRewrites)
-      ? raw.bulletRewrites
-          .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
-          .map((r) => ({ original: String(r.original ?? ""), improved: String(r.improved ?? "") }))
-          .filter((r) => r.original && r.improved)
-      : [];
-    return {
-      highlights: strArray(raw.highlights),
-      missingKeywords: strArray(raw.missingKeywords),
-      bulletRewrites: rewrites,
-      mostRelevantExperiences: strArray(raw.mostRelevantExperiences),
-      recommendedOrder: strArray(raw.recommendedOrder),
-    };
-  } catch (err) {
-    console.error("Failed to parse AI CV-optimization response:", err);
-    return null;
-  }
+export function sanitizeCvOptimization(raw: Record<string, unknown>): CvOptimizationResult {
+  const strArray = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim().length > 0) : [];
+  const rewrites = Array.isArray(raw.bulletRewrites)
+    ? raw.bulletRewrites
+        .filter((r): r is Record<string, unknown> => typeof r === "object" && r !== null)
+        .map((r) => ({ original: String(r.original ?? "").trim(), improved: String(r.improved ?? "").trim() }))
+        .filter((r) => r.original && r.improved)
+    : [];
+  return {
+    highlights: strArray(raw.highlights),
+    missingKeywords: strArray(raw.missingKeywords),
+    bulletRewrites: rewrites,
+    mostRelevantExperiences: strArray(raw.mostRelevantExperiences),
+    recommendedOrder: strArray(raw.recommendedOrder),
+  };
 }

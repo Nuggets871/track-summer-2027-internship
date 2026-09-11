@@ -17,17 +17,10 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model Country {
-  id                 String   @id @default(cuid())
-  name               String   @unique
-  code               String?  @unique // ISO 3166-1 alpha-2
-  region             String?
-  personalPreference Int      @default(3) // 1-5, how much the user likes this destination
-  visaNotes          String? // personal notes only — NOT legal advice
-  costOfLivingNotes  String?
-  averageSalaryNote  String?
-  usefulLinks        String? // JSON array of {label, url}
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   cities       City[]
   companies    Company[]
@@ -55,26 +48,14 @@ model City {
 // ---------------------------------------------------------------------------
 
 model Company {
-  id               String   @id @default(cuid())
-  name             String
-  logoUrl          String?
-  website          String?
-  linkedin         String?
-  countryId        String?
-  country          Country? @relation(fields: [countryId], references: [id])
-  citiesText       String? // free text list of hiring cities, e.g. "London, Manchester"
-  sector           String?
-  type             String? // e.g. Startup, Bank, Consulting, Big Tech...
-  size             String? // e.g. "1-10", "11-50", "51-200", "201-1000", "1000+"
-  description      String?
-  personalNote     String?
-  interestLevel    Int      @default(3) // 1-5
-  fitScore         Int      @default(0) // 0-100, computed by scoring engine
-  wishlistCategory String? // DREAM | HIGH_PRIORITY | TARGET | BACKUP | EXPLORATORY
-  wishlistProgress Int      @default(0) // 0-100 manual progress tracker
-  isDemo           Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  countryId String?
+  country   Country? @relation(fields: [countryId], references: [id])
+  sector    String?
+  isDemo    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   applications Application[]
   documents    Document[]
@@ -117,7 +98,6 @@ model Application {
 
   remotePossible Boolean @default(false)
   sector         String?
-  department     String?
 
   jobUrl String?
   source String? // LinkedIn, Site entreprise, Candidature spontanée, Networking, ...
@@ -128,16 +108,8 @@ model Application {
   potentialStartDate DateTime?
   durationMonths     Int?
 
-  salaryAmount        Float?
-  salaryCurrency      String?  @default("EUR")
-  housingProvided     Boolean?
-  visaRequired        Boolean?
-  sponsorshipPossible Boolean?
-  languageRequired    String?
-
-  priority             String @default("MEDIUM") // LOW | MEDIUM | HIGH | DREAM
-  interestScore        Int    @default(50) // 0-100
-  estimatedProbability Int    @default(50) // 0-100
+  salaryAmount   Float?
+  salaryCurrency String? @default("EUR")
 
   statusId String
   status   PipelineStage @relation(fields: [statusId], references: [id])
@@ -149,6 +121,7 @@ model Application {
 
   notes              String?
   interviewPrepNotes String? // AI-generated "Prepare interview" output, rattaché directement à l'opportunité
+  interviewChecklist String? // JSON array of { id, label, done } — user-managed interview prep checklist
   applicationType    String   @default("ADVERTISED") // ADVERTISED | SPONTANEOUS
   outreachChannel    String? // EMAIL | LINKEDIN | WEBSITE | CONTACT | OTHER
   recipientName      String?
@@ -156,9 +129,9 @@ model Application {
   targetRole         String?
   companyResearch    String?
   messageDraft       String?
-  contactedAt        DateTime?
   followUpAt         DateTime?
   aiChatHistory      String? // JSON array of opportunity-scoped chat messages
+  deletedAt          DateTime? // soft delete — hidden everywhere, restorable from the trash
   isDemo             Boolean  @default(false)
 
   createdAt DateTime @default(now())
@@ -167,11 +140,46 @@ model Application {
   documents   Document[]
   coverLetter CoverLetter?
   jobAnalysis JobAnalysis?
+  activities  Activity[]
 
   @@index([companyId])
   @@index([statusId])
   @@index([deadline])
   @@index([nextActionDate])
+  @@index([deletedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Activity — automatic, append-only timeline per application
+// ---------------------------------------------------------------------------
+
+model Activity {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          String // CREATED | STATUS_CHANGE | APPLIED | FOLLOW_UP | NOTE | DOCUMENT | INTERVIEW_PREP | COVER_LETTER
+  summary       String
+  createdAt     DateTime    @default(now())
+
+  @@index([applicationId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Leads — a lightweight capture inbox for URLs/companies to triage later
+// ---------------------------------------------------------------------------
+
+model Lead {
+  id        String   @id @default(cuid())
+  url       String?
+  company   String?
+  role      String?
+  note      String?
+  status    String   @default("NEW") // NEW | CONVERTED | DISCARDED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
 }
 
 // ---------------------------------------------------------------------------
@@ -235,10 +243,6 @@ model Setting {
   followUpRuleDays     Int       @default(7)
   staleOpportunityDays Int       @default(14)
   deadlineWarningDays  Int       @default(3)
-  contactSilenceDays   Int       @default(20)
-  priorityWeights      String? // JSON: { interest, deadlineProximity, fit, probability, relationship, staleness }
-  matchWeights         String? // JSON: { skills, experience, education, languages, location, preferences } — job-match dimension weights
-  hasSeenDemoNotice    Boolean   @default(false)
 
   // AI provider config — the key lives in this local database (never in
   // source code, never logged), so the app never requires an env var edit.

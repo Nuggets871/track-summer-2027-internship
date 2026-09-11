@@ -13,6 +13,8 @@ import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
 import { normalizeSkillList } from "@/lib/skill-normalization";
 import { assertPublicHttpUrl } from "@/lib/url-safety";
 import { safeJsonParse } from "@/lib/utils";
+import { DEFAULT_MATCH_WEIGHTS } from "@/lib/constants";
+import { logActivity } from "@/lib/data/activity";
 const FETCH_TIMEOUT_MS = 12_000;
 
 export type DuplicateMatch = { id: string; title: string; companyName: string } | null;
@@ -147,7 +149,7 @@ async function runMatchAndEligibility(extracted: ExtractedJobData) {
     requiredEndDate: extracted.endDate ? new Date(`${extracted.endDate}T00:00:00Z`) : null,
     durationWeeks: extracted.durationWeeks ?? (extracted.durationMonths ? Math.round(extracted.durationMonths * 4.345) : null),
   };
-  const match = computeJobMatch(profile, jobForMatching, settings.matchWeights, {
+  const match = computeJobMatch(profile, jobForMatching, DEFAULT_MATCH_WEIGHTS, {
     preferredCountries: settings.preferredCountries,
     preferredSectors: settings.preferredSectors,
   });
@@ -340,6 +342,7 @@ export async function saveAnalyzedOpportunity(raw: SaveOpportunityInput) {
     return created;
   });
 
+  await logActivity(application.id, "CREATED", "Opportunité ajoutée depuis un lien d'offre");
   revalidatePath("/", "layout");
   revalidatePath("/opportunities");
   return application;
@@ -375,7 +378,7 @@ export async function recalculateJobMatch(applicationId: string) {
     durationWeeks: analysis.requiredDurationWeeks ?? (application.durationMonths ? Math.round(application.durationMonths * 4.345) : null),
   };
 
-  const match = computeJobMatch(profile, jobForMatching, settings.matchWeights, {
+  const match = computeJobMatch(profile, jobForMatching, DEFAULT_MATCH_WEIGHTS, {
     preferredCountries: settings.preferredCountries,
     preferredSectors: settings.preferredSectors,
   });
