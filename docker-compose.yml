@@ -11,6 +11,9 @@ services:
     volumes:
       - track-internship-data:/app/data
       - track-internship-uploads:/app/uploads
+      # Personal reference assets (e.g. the candidate's own cover letter) live
+      # on the host, outside git, and are imported into the DB at startup.
+      - ./local-assets:/app/local-assets:ro
     networks:
       - web
     labels:

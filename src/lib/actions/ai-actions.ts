@@ -49,10 +49,11 @@ export async function generateCoverLetterForApplication(
     profileSummary: await buildProfileSummary(),
     tone,
     language,
+    referenceLetter: profile.coverLetterReference,
   });
 
   const usedAi = content !== null;
-  const finalContent = content ?? templateCoverLetter(application.title, application.company.name, matchedSkills, profile.fieldOfStudy);
+  const finalContent = content ?? templateCoverLetter(application.title, application.company.name, matchedSkills, profile.fieldOfStudy, profile.firstName, profile.lastName, language);
 
   const letter = await prisma.coverLetter.upsert({
     where: { applicationId },
@@ -67,11 +68,12 @@ export async function generateCoverLetterForApplication(
   });
 
   revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath(`/opportunities/${applicationId}/letter`);
   return { letter, usedAi };
 }
 
 export async function refineCoverLetter(applicationId: string, instruction: string) {
-  const existing = await prisma.coverLetter.findUniqueOrThrow({ where: { applicationId } });
+  const existing = await prisma.coverLetter.findUnique({ where: { applicationId } });
   const application = await getApplicationContext(applicationId);
   const profile = await getProfile();
   const matchedSkills = matchedSkillsFor(application.jobAnalysis?.requiredSkills, profile.skills);
@@ -82,28 +84,31 @@ export async function refineCoverLetter(applicationId: string, instruction: stri
     jobDescription: application.jobAnalysis?.rawExtractedText?.slice(0, 5000) ?? application.companyResearch ?? null,
     matchedSkills,
     profileSummary: await buildProfileSummary(),
-    tone: (existing.tone as CoverLetterTone) ?? "PROFESSIONAL",
-    language: (existing.language as CoverLetterLanguage) ?? "FR",
-    previousDraft: existing.content ?? "",
+    tone: (existing?.tone as CoverLetterTone) ?? "PROFESSIONAL",
+    language: (existing?.language as CoverLetterLanguage) ?? "FR",
+    referenceLetter: profile.coverLetterReference,
+    previousDraft: existing?.content ?? "",
     refineInstruction: instruction,
   });
 
   if (!content) throw new Error("L'IA n'est pas disponible pour affiner cette lettre. Configurez une clé dans Paramètres > AI.");
 
-  const revisions = safeJsonParse<string[]>(existing.revisionHistory, []);
-  if (existing.content) revisions.push(existing.content);
-  const history = safeJsonParse<ChatMessage[]>(existing.chatHistory, []);
+  const revisions = safeJsonParse<string[]>(existing?.revisionHistory ?? null, []);
+  if (existing?.content) revisions.push(existing.content);
+  const history = safeJsonParse<ChatMessage[]>(existing?.chatHistory ?? null, []);
   history.push({ role: "user", content: instruction }, { role: "assistant", content });
   // revisionHistory is capped below, so its length alone would freeze the
   // version at v21 forever once 20 revisions exist. Increment the stored
   // version instead, which is monotonic.
-  const currentVersion = Number.parseInt((existing.version ?? "v1").replace(/^v/i, ""), 10);
+  const currentVersion = Number.parseInt((existing?.version ?? "v1").replace(/^v/i, ""), 10);
   const nextVersion = `v${Number.isFinite(currentVersion) ? currentVersion + 1 : revisions.length + 1}`;
-  const letter = await prisma.coverLetter.update({
+  const letter = await prisma.coverLetter.upsert({
     where: { applicationId },
-    data: { content, version: nextVersion, revisionHistory: JSON.stringify(revisions.slice(-20)), chatHistory: JSON.stringify(history.slice(-20)) },
+    create: { applicationId, companyId: application.companyId, content, version: nextVersion },
+    update: { content, version: nextVersion, revisionHistory: JSON.stringify(revisions.slice(-20)), chatHistory: JSON.stringify(history.slice(-20)) },
   });
   revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath(`/opportunities/${applicationId}/letter`);
   return letter;
 }
 
@@ -117,6 +122,7 @@ export async function restorePreviousCoverLetter(applicationId: string) {
     data: { content: previous, version: `v${Math.max(1, revisions.length + 1)}`, revisionHistory: JSON.stringify(revisions) },
   });
   revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath(`/opportunities/${applicationId}/letter`);
   return letter;
 }
 
@@ -185,20 +191,41 @@ export async function saveCoverLetterContent(applicationId: string, content: str
     update: { content },
   });
   revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath(`/opportunities/${applicationId}/letter`);
 }
 
-function templateCoverLetter(title: string, companyName: string, matchedSkills: string[], fieldOfStudy: string | null) {
+function templateCoverLetter(
+  title: string,
+  companyName: string,
+  matchedSkills: string[],
+  fieldOfStudy: string | null,
+  firstName: string | null,
+  lastName: string | null,
+  language: CoverLetterLanguage,
+) {
+  const name = [firstName, lastName].filter(Boolean).join(" ") || "[Votre nom]";
+  if (language === "EN") {
+    return `Dear Hiring Team,
+
+I am writing to apply for the ${title} position at ${companyName}.
+${matchedSkills.length > 0 ? `\nThe role connects directly with my work on ${matchedSkills.join(", ")}.` : ""}
+${fieldOfStudy ? `My background in ${fieldOfStudy} ` : "My background "}gives me a solid base for this role. [Add one or two concrete examples from your experience related to the role.]
+
+I would be glad to discuss how my profile could fit your team.
+
+Best regards,
+${name}`;
+  }
   return `Madame, Monsieur,
 
 Je souhaite rejoindre ${companyName} au poste de ${title}.
-
-${matchedSkills.length > 0 ? `L'offre fait écho à mon travail avec ${matchedSkills.join(", ")}. ` : ""}${fieldOfStudy ? `Ma formation en ${fieldOfStudy} ` : "Ma formation "}constitue une base utile pour ce rôle.
-
-[Ajoutez ici 1-2 exemples concrets de votre expérience en lien avec le poste.]
+${matchedSkills.length > 0 ? `\nL'offre fait écho à mon travail avec ${matchedSkills.join(", ")}.` : ""}
+${fieldOfStudy ? `Ma formation en ${fieldOfStudy} ` : "Ma formation "}constitue une base utile pour ce rôle. [Ajoutez ici 1-2 exemples concrets de votre expérience en lien avec le poste.]
 
 Je serais ravi(e) d'échanger avec vous pour vous présenter plus en détail ma motivation.
 
-Cordialement,`;
+Cordialement,
+${name}`;
 }
 
 // --- CV optimization ----------------------------------------------------

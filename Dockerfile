@@ -33,9 +33,10 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/package.json ./package.json
 
-RUN mkdir -p /app/data /app/uploads \
+RUN mkdir -p /app/data /app/uploads /app/local-assets \
     && chown -R node:node /app
 
 USER node
@@ -44,4 +45,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=45s --retries=5 \
   CMD wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1
 
-CMD ["sh", "-c", "npx prisma migrate deploy && exec npm run start"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node scripts/import-reference-letter.mjs; exec npm run start"]

@@ -52,6 +52,8 @@ export type AppProfile = ProfileForMatching & {
   cvDocumentId: string | null;
   cvRawText: string | null;
   cvParsedAt: Date | null;
+  coverLetterReference: string | null;
+  coverLetterReferenceDocumentId: string | null;
   updatedAt: Date;
 };
 
@@ -86,6 +88,8 @@ export async function getProfile(): Promise<AppProfile> {
     cvDocumentId: row.cvDocumentId,
     cvRawText: row.cvRawText,
     cvParsedAt: row.cvParsedAt,
+    coverLetterReference: row.coverLetterReference,
+    coverLetterReferenceDocumentId: row.coverLetterReferenceDocumentId,
     updatedAt: row.updatedAt,
   };
 }

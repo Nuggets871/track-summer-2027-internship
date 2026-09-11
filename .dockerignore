@@ -11,6 +11,7 @@ prisma/*.db-journal
 prisma/test.db*
 uploads/*
 !uploads/.gitkeep
+local-assets
 npm-debug.log*
 *.tsbuildinfo
 .DS_Store

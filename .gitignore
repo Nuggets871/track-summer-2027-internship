@@ -50,6 +50,11 @@ next-env.d.ts
 /uploads/*
 !/uploads/.gitkeep
 
+# personal reference assets (cover letter...): kept on the host / mounted into
+# the container at deploy time, never committed to the public repository
+/local-assets/*
+!/local-assets/.gitkeep
+
 # editor
 .idea
 

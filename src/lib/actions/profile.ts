@@ -249,3 +249,77 @@ export async function applyCvToProfile(raw: z.infer<typeof applyCvSchema>) {
   revalidatePath("/", "layout");
   revalidatePath("/profile");
 }
+
+// --- Reference cover letter ----------------------------------------------
+
+export type ReferenceLetterPreview = { documentId: string; rawText: string };
+
+/**
+ * Stores the candidate's own past cover letter as a local reference. Used as
+ * the voice/structure anchor when drafting a new one — it never overwrites
+ * anything else and is entirely optional.
+ */
+export async function importReferenceCoverLetter(formData: FormData): Promise<ReferenceLetterPreview> {
+  const file = formData.get("file") as File | null;
+  if (!file || file.size === 0) throw new Error("Aucun fichier fourni");
+  if (file.size > MAX_CV_BYTES) throw new Error("Fichier trop volumineux (10 Mo maximum).");
+
+  const extension = (file.name.match(/\.[^.]+$/)?.[0] ?? "").toLowerCase();
+  if (extension && !ALLOWED_CV_EXTENSIONS.has(extension)) {
+    throw new Error("Format non pris en charge — utilise un PDF, DOCX ou TXT.");
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const rawText = await extractTextFromCvFile(buffer, file.name, file.type || null);
+  if (!rawText.trim()) throw new Error("Impossible d'extraire du texte de ce fichier.");
+
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const { randomUUID } = await import("node:crypto");
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  await mkdir(uploadsDir, { recursive: true });
+  const storedName = `${randomUUID()}${extension || ".txt"}`;
+  await writeFile(path.join(uploadsDir, storedName), buffer);
+
+  const document = await prisma.document.create({
+    data: {
+      name: `${file.name.replace(/\.[^.]+$/, "")} (lettre de référence)`,
+      category: "COVER_LETTER",
+      version: "v1",
+      filePath: storedName,
+      fileSize: file.size,
+      mimeType: file.type || null,
+    },
+  });
+
+  await getOrCreateProfileRow();
+  await prisma.profile.update({
+    where: { id: "singleton" },
+    data: { coverLetterReference: rawText, coverLetterReferenceDocumentId: document.id },
+  });
+
+  revalidatePath("/", "layout");
+  revalidatePath("/profile");
+  return { documentId: document.id, rawText };
+}
+
+export async function saveReferenceCoverLetterText(rawText: string) {
+  const text = z.string().trim().max(50_000).parse(rawText);
+  await getOrCreateProfileRow();
+  await prisma.profile.update({
+    where: { id: "singleton" },
+    data: { coverLetterReference: text || null },
+  });
+  revalidatePath("/", "layout");
+  revalidatePath("/profile");
+}
+
+export async function clearReferenceCoverLetter() {
+  await getOrCreateProfileRow();
+  await prisma.profile.update({
+    where: { id: "singleton" },
+    data: { coverLetterReference: null, coverLetterReferenceDocumentId: null },
+  });
+  revalidatePath("/", "layout");
+  revalidatePath("/profile");
+}

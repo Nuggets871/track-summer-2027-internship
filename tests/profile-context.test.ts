@@ -29,6 +29,8 @@ describe("AI profile context harness", () => {
       cvDocumentId: null,
       cvRawText: "CV source text",
       cvParsedAt: null,
+      coverLetterReference: null,
+      coverLetterReferenceDocumentId: null,
       updatedAt: new Date(),
     } satisfies AppProfile;
 

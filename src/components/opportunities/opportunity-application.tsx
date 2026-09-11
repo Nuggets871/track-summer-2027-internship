@@ -7,30 +7,14 @@ import type { Application, Company, CoverLetter } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles, Check, ChevronDown, ExternalLink, Undo2, AlertTriangle, Globe2 } from "lucide-react";
+import { FileText, Sparkles, Check, ChevronDown, ExternalLink, Globe2, ArrowRight } from "lucide-react";
 import { updateApplication } from "@/lib/actions/applications";
-import { generateCoverLetterForApplication, generateSpontaneousMessage, refineCoverLetter, restorePreviousCoverLetter, saveCoverLetterContent, saveSpontaneousMessage } from "@/lib/actions/ai-actions";
+import { generateSpontaneousMessage, saveSpontaneousMessage } from "@/lib/actions/ai-actions";
 import type { AppProfile } from "@/lib/data/profile";
 import { cn } from "@/lib/utils";
-import { inspectCoverLetterStyle } from "@/lib/ai/cover-letter-style";
 
 type ApplicationDetail = Application & { company: Company; coverLetter: CoverLetter | null };
-
-const TONES = [
-  { value: "PROFESSIONAL", label: "Professionnel" },
-  { value: "NATURAL", label: "Naturel" },
-  { value: "CONCISE", label: "Concis" },
-  { value: "PERSONALIZED", label: "Très personnalisé" },
-] as const;
-
-const REFINE_ACTIONS = [
-  { key: "Rends la lettre plus courte.", label: "Plus courte" },
-  { key: "Rends le ton plus naturel et moins formel.", label: "Plus naturel" },
-  { key: "Sois plus précis sur les éléments de l'offre.", label: "Plus spécifique" },
-  { key: "Mets davantage en avant mon expérience professionnelle.", label: "Focus expérience" },
-];
 
 function toDateInput(d: Date | null) {
   return d ? new Date(d).toISOString().slice(0, 10) : "";
@@ -113,12 +97,7 @@ export function OpportunityApplication({ application, profile }: { application: 
   // Les champs secondaires restent repliés par défaut pour ne montrer que
   // l'essentiel — sauf s'il y a déjà des données dedans, pour ne rien cacher.
   const [detailsOpen, setDetailsOpen] = useState(Boolean(application.nextAction || application.nextActionDate || application.notes));
-  const [tone, setTone] = useState<(typeof TONES)[number]["value"]>((application.coverLetter?.tone as never) ?? "PROFESSIONAL");
-  const [language, setLanguage] = useState<"FR" | "EN">((application.coverLetter?.language as "FR" | "EN") ?? "FR");
-  const [letterContent, setLetterContent] = useState(application.coverLetter?.content ?? "");
-  const [refineInstruction, setRefineInstruction] = useState("");
   const [messageDraft, setMessageDraft] = useState(application.messageDraft ?? "");
-  const styleWarnings = inspectCoverLetterStyle(letterContent, application.applicationType === "SPONTANEOUS" ? application.companyResearch ? application.company.name : undefined : application.company.name);
 
   const saveTracking = () => {
     startTransition(async () => {
@@ -129,45 +108,6 @@ export function OpportunityApplication({ application, profile }: { application: 
         notes: notes || null,
       });
       toast.success("Candidature mise à jour");
-    });
-  };
-
-  const generate = () => {
-    startLetterTransition(async () => {
-      const { letter, usedAi } = await generateCoverLetterForApplication(application.id, tone, language);
-      setLetterContent(letter.content ?? "");
-      toast.success(usedAi ? "Lettre générée par l'IA" : "Modèle de lettre généré (IA non configurée)");
-    });
-  };
-
-  const refine = (instruction: string) => {
-    startLetterTransition(async () => {
-      try {
-        const letter = await refineCoverLetter(application.id, instruction);
-        setLetterContent(letter.content ?? "");
-        toast.success("Lettre affinée");
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erreur");
-      }
-    });
-  };
-
-  const saveLetter = () => {
-    startLetterTransition(async () => {
-      await saveCoverLetterContent(application.id, letterContent);
-      toast.success("Lettre enregistrée");
-    });
-  };
-
-  const restorePrevious = () => {
-    startLetterTransition(async () => {
-      try {
-        const letter = await restorePreviousCoverLetter(application.id);
-        setLetterContent(letter.content ?? "");
-        toast.success("Version précédente restaurée");
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Aucune version précédente");
-      }
     });
   };
 
@@ -241,73 +181,22 @@ export function OpportunityApplication({ application, profile }: { application: 
         </div>
 
         <div className="flex flex-col gap-3 border-t border-border pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-sm font-medium text-foreground">Lettre de motivation</h4>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={tone} onValueChange={(v) => setTone(v as typeof tone)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TONES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={language} onValueChange={(v) => setLanguage(v as "FR" | "EN")}>
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FR">Français</SelectItem>
-                  <SelectItem value="EN">English</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button size="sm" onClick={generate} disabled={letterPending}>
-                <Sparkles className="size-3.5" /> {letterContent ? "Régénérer" : "Générer"}
-              </Button>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h4 className="text-sm font-medium text-foreground">Lettre de motivation</h4>
+              <p className="text-xs text-muted-foreground">
+                {application.coverLetter
+                  ? `Version ${application.coverLetter.version} enregistrée — génère, itère et télécharge-la (Word / PDF) dans son espace dédié.`
+                  : "Génère une lettre ancrée sur ton profil et ta lettre de référence, puis itère dans son espace dédié."}
+              </p>
             </div>
+            <Button asChild>
+              <Link href={`/opportunities/${application.id}/letter`}>
+                <Sparkles className="size-3.5" /> {application.coverLetter ? "Ouvrir la lettre" : "Préparer ma lettre"}
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
           </div>
-
-          {letterContent && (
-            <>
-              <Textarea rows={10} value={letterContent} onChange={(e) => setLetterContent(e.target.value)} />
-              {styleWarnings.length > 0 && (
-                <div className="rounded-md border border-warning/35 bg-warning-soft/40 p-3">
-                  <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-foreground">
-                    <AlertTriangle className="size-3.5 text-warning" /> Contrôle de naturel
-                  </p>
-                  <ul className="space-y-1 text-xs text-muted-foreground">
-                    {styleWarnings.map((warning) => <li key={warning.id}><strong className="text-foreground">{warning.label} :</strong> {warning.detail}</li>)}
-                  </ul>
-                  <p className="mt-2 text-[11px] text-subtle-foreground">Ce contrôle signale des habitudes de style. Il ne prétend pas détecter si un texte vient d’une IA.</p>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Input value={refineInstruction} onChange={(e) => setRefineInstruction(e.target.value)} onKeyDown={(e) => {
-                  if (e.key === "Enter" && refineInstruction.trim()) { e.preventDefault(); refine(refineInstruction); setRefineInstruction(""); }
-                }} placeholder="Demande une modification précise…" />
-                <Button size="sm" disabled={letterPending || !refineInstruction.trim()} onClick={() => { refine(refineInstruction); setRefineInstruction(""); }}>Envoyer</Button>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {REFINE_ACTIONS.map((a) => (
-                    <Button key={a.key} size="sm" variant="outline" disabled={letterPending} onClick={() => refine(a.key)}>
-                      {a.label}
-                    </Button>
-                  ))}
-                </div>
-                <Button size="sm" variant="secondary" onClick={saveLetter} disabled={letterPending}>
-                  Enregistrer la lettre
-                </Button>
-                <Button size="sm" variant="ghost" onClick={restorePrevious} disabled={letterPending}>
-                  <Undo2 className="size-3.5" /> Annuler la dernière version
-                </Button>
-              </div>
-            </>
-          )}
         </div>
 
         {application.applicationType === "SPONTANEOUS" && (

@@ -6,10 +6,11 @@
  * wipe it once you start tracking your own search.
  */
 import { PrismaClient } from "@prisma/client";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { DEFAULT_PIPELINE_STAGES, DEFAULT_CURRENCIES, DEFAULT_MATCH_WEIGHTS } from "../src/lib/constants";
 import { computeJobMatch, computeEligibility } from "../src/lib/job-matching";
+import { extractTextFromCvFile } from "../src/lib/cv-file-text";
 
 const prisma = new PrismaClient();
 
@@ -67,7 +68,7 @@ async function main() {
   });
 
   // 2. Candidate profile (used by the Match Score) ------------------------
-  await prisma.profile.upsert({
+  const profileRow = await prisma.profile.upsert({
     where: { id: "singleton" },
     create: {
       id: "singleton",
@@ -87,6 +88,36 @@ async function main() {
     },
     update: {},
   });
+
+  // 2b. Reference cover letter — if a local file was dropped in local-assets/,
+  // import its text into the profile. Local-only data: the folder is
+  // gitignored, so this step is simply skipped when the file is absent. In
+  // Docker, the equivalent step runs at container start (see Dockerfile).
+  const referencePath = path.join(process.cwd(), "local-assets", "reference-cover-letter.pdf");
+  if (existsSync(referencePath) && !profileRow.coverLetterReference) {
+    try {
+      const referenceText = await extractTextFromCvFile(readFileSync(referencePath), "reference-cover-letter.pdf", "application/pdf");
+      if (referenceText.trim()) {
+        const referenceDocument = await prisma.document.create({
+          data: {
+            name: "Lettre de motivation de référence",
+            category: "COVER_LETTER",
+            version: "v1",
+            filePath: "reference-cover-letter.pdf",
+            fileSize: readFileSync(referencePath).length,
+            mimeType: "application/pdf",
+          },
+        });
+        await prisma.profile.update({
+          where: { id: "singleton" },
+          data: { coverLetterReference: referenceText, coverLetterReferenceDocumentId: referenceDocument.id },
+        });
+        console.log("✉️  Lettre de motivation de référence importée depuis local-assets/.");
+      }
+    } catch (error) {
+      console.warn("Lettre de référence non importée :", error instanceof Error ? error.message : error);
+    }
+  }
 
   // 3. Pipeline stages (7 statuses) ----------------------------------------
   const existingStages = await prisma.pipelineStage.count({ where: { kind: "APPLICATION" } });

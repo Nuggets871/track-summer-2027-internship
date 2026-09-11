@@ -302,6 +302,12 @@ model Profile {
   cvRawText    String?
   cvParsedAt   DateTime?
 
+  // Reference cover letter — the candidate's own past letter, used as the
+  // voice/structure anchor when drafting a new one. Extracted plain text
+  // (kept even if the Document is deleted), stored locally like the CV.
+  coverLetterReference           String?
+  coverLetterReferenceDocumentId String?
+
   updatedAt DateTime @updatedAt
 }
 

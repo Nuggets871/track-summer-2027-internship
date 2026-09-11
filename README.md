@@ -85,16 +85,29 @@ Une seule page, pas d'onglets :
   forts, points de vigilance, compétences manquantes, recommandation, et un
   bouton pour recalculer ;
 - **Candidature** — date d'envoi, CV utilisé (celui de ton profil), prochaine
-  action, notes, et un **générateur de lettre de motivation IA** (ton :
-  professionnel / naturel / concis / très personnalisé ; langue : français /
-  anglais) avec des actions d'affinage (plus courte, plus naturelle, plus
-  spécifique, focus expérience) ;
+  action, notes, et un bouton **Préparer ma lettre** qui ouvre le studio dédié
+  décrit ci-dessous ;
 - **Actions IA** — ré-analyser l'offre, améliorer son CV pour ce poste
   précis, préparer l'entretien (contexte, points à mettre en avant, questions
   probables, points faibles à anticiper, questions à poser) ;
 - **Coach de cette opportunité** — une conversation IA scoping la
   candidature en cours (annonce, brouillon de lettre, dossier profil), dont
   l'historique reste attaché à l'opportunité.
+
+### ✉️ Studio de lettre de motivation
+Depuis la fiche d'une opportunité, le bouton **Préparer ma lettre** ouvre un
+espace dédié à cette candidature — la lettre reste liée à l'offre :
+
+- **Générer** un premier brouillon avec l'IA (ton et langue au choix), ancré
+  sur ton profil **et sur ta lettre de motivation de référence** (voir Profil) ;
+- **Itérer** : demandes libres (« raccourcis le 2e paragraphe ») ou actions
+  rapides (plus courte, plus naturelle, plus spécifique, focus expérience) ;
+- **Modifier à la main** dans l'éditeur, avec un **contrôle de naturel** qui
+  signale tirets cadratins, clichés, phrases trop longues, et l'absence du nom
+  de l'entreprise ;
+- **Télécharger en Word (.docx) et en PDF**, mis en page avec ton en-tête
+  (nom, coordonnées, date, destinataire, objet) ;
+- **Restaurer la version précédente** à tout moment.
 
 ### 👤 Profil
 Informations personnelles (dont LinkedIn/GitHub/portfolio), formation,
@@ -105,6 +118,11 @@ champs, tu coches ceux que tu veux appliquer — rien n'écrase ton profil sans
 confirmation explicite, champ par champ. Les liens LinkedIn/GitHub/portfolio
 réapparaissent avec un bouton de copie sur chaque fiche opportunité, dans la
 section Candidature — pratique quand un formulaire externe les redemande.
+
+**Lettre de motivation de référence** : importe l'une de tes propres lettres
+(PDF/DOCX/TXT) ou colle son texte. Elle sert de modèle de voix et de structure
+lors de la génération, sans jamais remplacer ton profil. Comme le CV, elle
+reste stockée localement (fichier dans `/uploads`, ignoré par Git).
 
 ### ⚙️ Paramètres
 - **IA** — clé API DeepSeek (enregistrer / tester la connexion / afficher-
@@ -136,6 +154,8 @@ section Candidature — pratique quand un formulaire externe les redemande.
 | Icônes | **lucide-react** | Cohérent avec l'esthétique Linear/Attio/Raycast |
 | CSV | **papaparse** | Import/export robuste du backup et des candidatures |
 | Extraction de CV | **pdf-parse**, **mammoth** | Texte brut à partir d'un PDF ou d'un DOCX |
+| Génération Word | **docx** | Produit un vrai `.docx` à partir du texte de la lettre |
+| Génération PDF | **pdf-lib** | Met en page un PDF A4, sans dépendance native |
 | Tests | **vitest** | Rapide, ESM natif, bonne intégration TypeScript |
 | IA (optionnelle) | **DeepSeek** (API compatible OpenAI), derrière une interface `AiProvider` | Extraction avancée, lettres de motivation, analyse de CV, préparation d'entretien — jamais requise, l'app reste 100 % fonctionnelle sans clé |
 
@@ -246,15 +266,17 @@ src/
   app/                   # Pages (App Router)
     page.tsx               # Accueil
     opportunities/          # Liste + fiche détail
-    profile/                # Profil candidat + import CV
+    opportunities/[id]/letter/ # Studio de lettre de motivation
+    profile/                # Profil candidat + import CV + lettre de référence
     settings/               # IA / Apparence / Confidentialité & données
     api/documents/[id]/     # Téléchargement des fichiers uploadés (CV inclus)
+    api/cover-letter/[id]/  # Export Word/PDF d'une lettre
   components/
     ui/                  # Primitives de design system (bouton, dialog...)
     layout/              # Sidebar, topbar, command palette, quick-add
     job-import/            # Workflow "coller un lien" (widget, flow, score card)
-    opportunities/          # Tableau + sections de la fiche opportunité
-    profile/                # Formulaire profil, import/review de CV
+    opportunities/          # Tableau + sections de la fiche + studio de lettre
+    profile/                # Formulaire profil, import CV, lettre de référence
     settings/               # Formulaires de chaque onglet Paramètres
   lib/
     actions/              # Server Actions (une "use server" par domaine)
@@ -265,6 +287,7 @@ src/
       providers/deepseek.ts   # Implémentation DeepSeek
       prompts/                # Un module par tâche IA (extraction, lettre, CV, entretien)
     cv-file-text.ts        # Extraction de texte PDF/DOCX/texte brut
+    cover-letter-export.ts   # Rendu d'une lettre en .docx et .pdf
     job-extraction.ts        # Parsing HTML/texte → données structurées (pur, testé)
     job-matching.ts           # Match Score + Eligibility (pur, testé)
     url-safety.ts            # Garde-fou SSRF pour les URLs fetchées
@@ -316,6 +339,25 @@ Traefik, qui applique HTTPS et l'authentification à l'ensemble du sous-domaine.
 > L'authentification applicative n'existe pas : le Basic Auth Traefik est la
 > seule barrière en production. Ne déployez pas l'app sans lui.
 
+### Lettre de motivation de référence en production
+
+La lettre de référence est une donnée personnelle : elle n'est **jamais**
+committée (le dépôt est public) ni intégrée à l'image Docker. Le conteneur la
+lit depuis `local-assets/`, monté en lecture seule par `docker-compose.yml`.
+Pour l'activer sur le serveur, une seule fois :
+
+```bash
+# depuis votre machine
+scp local-assets/reference-cover-letter.pdf deploy@51.91.156.194:~/track-summer-2027-internship/local-assets/
+```
+
+Puis redéployez (`FORCE_DEPLOY=1 ./deploy.sh`) : au démarrage, le conteneur
+importe automatiquement le fichier dans la base s'il n'y a pas déjà de lettre
+de référence (ok pour PDF, DOCX ou TXT). Vous pouvez aussi l'importer à tout
+moment depuis **Profil > Lettre de motivation de référence**. Les données
+(base + fichiers) vivent dans les volumes Docker nommés et survivent aux
+redéploiements.
+
 ## Tests
 
 ```bash
@@ -364,6 +406,11 @@ dans Prisma 7 (fichier `prisma.config.ts`). Sans impact aujourd'hui.
 **Le CV téléchargé depuis le profil est introuvable**
 Vérifiez que le dossier `/uploads` existe à la racine du projet et n'a pas été
 supprimé manuellement.
+
+**La génération de lettre ne reprend pas ma lettre de référence**
+Importe-la dans **Profil > Lettre de motivation de référence** (fichier
+PDF/DOCX/TXT ou texte collé). Elle n'est jamais requise : sans elle, la
+génération s'appuie uniquement sur ton profil.
 
 **Je veux repartir de zéro**
 `npm run db:reset` supprime et recrée entièrement la base de données locale,
