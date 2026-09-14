@@ -6,7 +6,11 @@ import { toast } from "sonner";
 import Papa from "papaparse";
 import { Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { exportApplicationsCsv, importApplicationsCsv } from "@/lib/actions/backup";
+import {
+  exportApplicationsCsv,
+  exportApplicationsForGoogleSheetsCsv,
+  importApplicationsCsv,
+} from "@/lib/actions/backup";
 
 function downloadText(filename: string, content: string, mime: string) {
   const blob = new Blob([content], { type: mime });
@@ -28,6 +32,22 @@ export function OpportunitiesCsvActions() {
       const csv = await exportApplicationsCsv();
       downloadText(`opportunites-${new Date().toISOString().slice(0, 10)}.csv`, csv, "text/csv;charset=utf-8");
       toast.success("Export CSV téléchargé");
+    });
+  };
+
+  const handleGoogleSheetsExport = () => {
+    startTransition(async () => {
+      try {
+        const csv = await exportApplicationsForGoogleSheetsCsv();
+        downloadText(
+          `stage-copilot-google-sheets-${new Date().toISOString().slice(0, 10)}.csv`,
+          `\uFEFF${csv}`,
+          "text/csv;charset=utf-8",
+        );
+        toast.success("Export Google Sheets téléchargé");
+      } catch {
+        toast.error("Impossible de préparer l’export Google Sheets");
+      }
     });
   };
 
@@ -55,6 +75,9 @@ export function OpportunitiesCsvActions() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <Button variant="outline" size="sm" onClick={handleGoogleSheetsExport} disabled={pending}>
+        <Download className="size-3.5" /> Exporter pour Google Sheets
+      </Button>
       <Button variant="outline" size="sm" onClick={handleExport} disabled={pending}>
         <Download className="size-3.5" /> Exporter CSV
       </Button>

@@ -123,4 +123,22 @@ describe("backup and CSV import/export", () => {
     const importedCompany = await prisma.company.findFirst({ where: { name: { contains: "(import)" } } });
     expect(importedCompany).not.toBeNull();
   });
+
+  it("exports a display-ready CSV for the companion Google Sheet", async () => {
+    const { exportApplicationsForGoogleSheetsCsv } = await import("@/lib/actions/backup");
+
+    const csv = await exportApplicationsForGoogleSheetsCsv();
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
+
+    expect(parsed.meta.fields).toEqual(expect.arrayContaining([
+      "ID",
+      "Entreprise",
+      "Poste",
+      "Statut",
+      "Score match",
+      "Éligibilité",
+      "Lien offre",
+    ]));
+    expect(parsed.data.some((row) => row.Poste.startsWith("Integration Test Intern"))).toBe(true);
+  });
 });

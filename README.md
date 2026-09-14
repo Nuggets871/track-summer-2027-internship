@@ -339,6 +339,11 @@ suivi :
   après confirmation explicite). La clé API IA n'y figure jamais.
 - **Export/import CSV des opportunités** — directement depuis la page
   Opportunités (les entreprises/pays manquants sont créés automatiquement).
+- **Actualisation du Google Sheet** — depuis **Opportunités**, cliquez sur
+  « Exporter pour Google Sheets », puis importez le CSV dans l'onglet
+  **Données** du classeur avec l'option « Remplacer les données dans la
+  feuille sélectionnée ». Les vues **Suivi**, **Détails** et leurs indicateurs
+  se recalculent automatiquement.
 - Les fichiers uploadés (CV compris) vivent dans `/uploads` : pensez à les
   inclure dans vos propres sauvegardes de fichiers si vous changez de machine.
 

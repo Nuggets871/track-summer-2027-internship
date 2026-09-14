@@ -5,8 +5,9 @@ import Papa from "papaparse";
 import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { LEGACY_STAGE_KEY_MAP } from "@/lib/constants";
+import { ELIGIBILITY_STATUSES, LEGACY_STAGE_KEY_MAP, labelFor } from "@/lib/constants";
 import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
+import { safeJsonParse } from "@/lib/utils";
 
 const EXPORTABLE_MODELS = [
   "country",
@@ -235,6 +236,80 @@ function safeDate(value: string | undefined): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+const GOOGLE_SHEETS_COLUMNS = [
+  "ID",
+  "Entreprise",
+  "Poste",
+  "Pays",
+  "Ville",
+  "Type",
+  "Statut",
+  "Score match",
+  "Éligibilité",
+  "Début requis",
+  "Fin requise",
+  "Durée requise (sem.)",
+  "Contrat",
+  "Compétences requises",
+  "Langues requises",
+  "Date candidature",
+  "Date découverte",
+  "Échéance",
+  "Lien offre",
+  "Prochaine action",
+  "Date prochaine action",
+  "Source",
+  "Priorité",
+  "Secteur",
+  "Notes",
+] as const;
+
+/**
+ * Flat, display-ready export used to refresh the companion Google Sheet.
+ * It is deliberately separate from the round-trip backup CSV above: these
+ * French headers and analysis fields are optimized for reading/importing,
+ * while exportApplicationsCsv stays stable for re-importing into the app.
+ */
+export async function exportApplicationsForGoogleSheetsCsv() {
+  const applications = await prisma.application.findMany({
+    where: { deletedAt: null },
+    include: { company: true, country: true, city: true, status: true, jobAnalysis: true },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+  });
+
+  const rows = applications.map((application) => ({
+    ID: application.id,
+    Entreprise: application.company.name,
+    Poste: application.title,
+    Pays: application.country?.name ?? "",
+    Ville: application.city?.name ?? "",
+    Type: application.applicationType === "SPONTANEOUS" ? "Candidature spontanée" : "Offre publiée",
+    Statut: application.status.label,
+    "Score match": application.jobAnalysis?.matchScore ?? "",
+    "Éligibilité": application.jobAnalysis?.eligibilityStatus
+      ? labelFor(ELIGIBILITY_STATUSES, application.jobAnalysis.eligibilityStatus)
+      : "Non analysée",
+    "Début requis": application.jobAnalysis?.requiredStartDate?.toISOString().slice(0, 10) ?? "",
+    "Fin requise": application.jobAnalysis?.requiredEndDate?.toISOString().slice(0, 10) ?? "",
+    "Durée requise (sem.)": application.jobAnalysis?.requiredDurationWeeks ?? "",
+    Contrat: application.jobAnalysis?.contractType ?? "",
+    "Compétences requises": safeJsonParse<string[]>(application.jobAnalysis?.requiredSkills, []).join(" • "),
+    "Langues requises": safeJsonParse<string[]>(application.jobAnalysis?.requiredLanguages, []).join(" • "),
+    "Date candidature": application.appliedAt?.toISOString().slice(0, 10) ?? "",
+    "Date découverte": application.discoveredAt?.toISOString().slice(0, 10) ?? "",
+    "Échéance": application.deadline?.toISOString().slice(0, 10) ?? "",
+    "Lien offre": application.jobUrl ?? "",
+    "Prochaine action": application.nextAction ?? "",
+    "Date prochaine action": application.nextActionDate?.toISOString().slice(0, 10) ?? "",
+    Source: application.source ?? "",
+    Priorité: "",
+    Secteur: application.sector ?? "",
+    Notes: application.notes ?? "",
+  }));
+
+  return Papa.unparse({ fields: [...GOOGLE_SHEETS_COLUMNS], data: rows });
 }
 
 export async function importApplicationsCsv(rows: Record<string, string>[]) {
