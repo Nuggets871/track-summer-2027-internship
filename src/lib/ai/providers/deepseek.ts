@@ -1,6 +1,9 @@
 import type { AiProvider, ChatMessage, AiCallOptions } from "@/lib/ai/types";
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
+// DeepSeek-V4.1-Flash (released 2026-09-10). The legacy `deepseek-chat` alias
+// is past its retirement date; `deepseek-flash` is the current documented ID.
+const DEEPSEEK_MODEL = "deepseek-flash";
 const REQUEST_TIMEOUT_MS = 20_000;
 // Bounds every generation so a prompt can never produce an unbounded reply
 // (and an unbounded bill). Callers can raise/lower it per task.
@@ -19,7 +22,7 @@ export function createDeepSeekProvider(getApiKey: () => Promise<string | null>):
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "deepseek-chat",
+          model: DEEPSEEK_MODEL,
           messages,
           temperature: opts.temperature ?? 0.3,
           max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
