@@ -1,4 +1,4 @@
-import { Home, Briefcase, User, Settings, Calendar, Inbox, type LucideIcon } from "lucide-react";
+import { Home, Briefcase, User, Settings, Calendar, Inbox, Search, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   label: string;
@@ -9,6 +9,7 @@ export type NavItem = {
 // Keep the primary navigation focused on the candidate's daily workflow.
 export const NAV_ITEMS: NavItem[] = [
   { label: "Accueil", href: "/", icon: Home },
+  { label: "Recherche", href: "/search", icon: Search },
   { label: "Opportunités", href: "/opportunities", icon: Briefcase },
   { label: "Calendrier", href: "/calendar", icon: Calendar },
   { label: "Pistes", href: "/inbox", icon: Inbox },

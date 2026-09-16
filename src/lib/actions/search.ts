@@ -1,0 +1,33 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { runSearch, type RunSearchOutput } from "@/lib/search/run";
+
+const searchInputSchema = z.object({
+  keywords: z.string().max(200).optional(),
+  countryName: z.string().max(100).nullable().optional(),
+  countryCode: z.string().max(5).nullable().optional(),
+  remote: z.boolean().optional(),
+});
+
+export async function runJobSearch(raw: unknown): Promise<RunSearchOutput> {
+  const input = searchInputSchema.parse(raw ?? {});
+  return runSearch(input);
+}
+
+const saveSchema = z.object({
+  url: z.string().url(),
+  company: z.string().max(200).nullable().optional(),
+  title: z.string().max(200).nullable().optional(),
+});
+
+export async function addSearchResultToInbox(raw: unknown) {
+  const data = saveSchema.parse(raw);
+  await prisma.lead.create({
+    data: { url: data.url, company: data.company ?? null, role: data.title ?? null, note: "Trouvé via Recherche" },
+  });
+  revalidatePath("/inbox");
+  return { ok: true };
+}

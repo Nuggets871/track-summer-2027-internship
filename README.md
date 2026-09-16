@@ -115,6 +115,22 @@ envoyées**, avec le compte par jour et le détail au clic. Le bouton
 **Export .ics** produit un flux importable dans n'importe quel agenda
 (Google Calendar, Apple Calendar...).
 
+### 🔎 Recherche (Découverte)
+Une recherche multi-sources **pilotée par le `.env` et ton profil** — aucune
+clé à saisir dans l'app, aucun écran de configuration :
+- **Entreprises ciblées** (Greenhouse / Lever / Ashby) : API publiques **sans
+  clé**, depuis un registre versionné (`src/lib/search/ats-companies.ts`) ;
+- **Adzuna** : agrégateur international (`ADZUNA_APP_ID` / `ADZUNA_APP_KEY`) ;
+- **JSearch** : LinkedIn / Indeed / Glassdoor via Google for Jobs
+  (`JSEARCH_API_KEY`) ;
+- **Recherche web** (Serper) : atteint les sites sans API comme JobTeaser
+  (`SERPER_API_KEY`).
+
+Une source s'active **dès que sa variable existe** dans `.env`. Les mots-clés
+et destinations sont préremplis depuis ton profil, les résultats sont
+dédupliqués, filtrés aux stages et **scorés localement** (aucun token). Un clic
+les envoie dans **Pistes**.
+
 ### 📥 Pistes
 Une boîte de réception légère pour **capturer en lot** des URLs ou des
 « Entreprise — Rôle » collées les unes sous les autres, puis les trier plus
