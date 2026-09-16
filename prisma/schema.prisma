@@ -183,6 +183,65 @@ model Lead {
 }
 
 // ---------------------------------------------------------------------------
+// Discovery memory — every job ever found by the search, so a source is only
+// fetched again when needed and "new" can be told apart from "already seen".
+// ---------------------------------------------------------------------------
+
+model DiscoveredJob {
+  id            String @id @default(cuid())
+  canonicalUrl  String @unique
+  url           String
+  providerId    String
+  source        String
+  sourceJobId   String?
+  title         String
+  company       String
+  city          String?
+  country       String?
+  remoteType    String?
+  salaryAmount  Float?
+  salaryCurrency String?
+  employmentType String?
+  postedAt      DateTime?
+  description   String?
+
+  matchScore        Int?
+  matchLabel        String?
+  eligibilityStatus String?
+
+  dismissed   Boolean  @default(false)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@index([providerId])
+  @@index([firstSeenAt])
+  @@index([matchScore])
+  @@index([dismissed])
+}
+
+// Short-lived response cache per provider+query, to absorb repeated clicks
+// without hammering a quota-limited API.
+model SearchQueryCache {
+  key        String   @id
+  providerId String
+  payload    String
+  fetchedAt  DateTime @default(now())
+
+  @@index([providerId])
+  @@index([fetchedAt])
+}
+
+// Per-provider call counter (daily or monthly) to stay within free tiers.
+model ProviderUsage {
+  id         String @id @default(cuid())
+  providerId String
+  periodKey  String // "2026-09-16" (day) or "2026-09" (month)
+  count      Int    @default(0)
+
+  @@unique([providerId, periodKey])
+}
+
+// ---------------------------------------------------------------------------
 // Documents
 // ---------------------------------------------------------------------------
 

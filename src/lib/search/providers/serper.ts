@@ -16,6 +16,8 @@ export const serperProvider: JobSearchProvider = {
   envVars: ["SERPER_API_KEY"],
   requiresKey: true,
   mode: "query",
+  quota: { limit: 2000, period: "month" },
+  cacheTtlSeconds: 60 * 60,
   isConfigured: () => Boolean(process.env.SERPER_API_KEY),
 
   async search(query: SearchQuery, limit: number): Promise<NormalizedSearchJob[]> {

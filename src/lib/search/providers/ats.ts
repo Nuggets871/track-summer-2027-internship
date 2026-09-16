@@ -116,6 +116,7 @@ export const atsProvider: JobSearchProvider = {
   envVars: [],
   requiresKey: false,
   mode: "catalog",
+  cacheTtlSeconds: 60 * 60 * 3,
   isConfigured: () => ATS_COMPANIES.length > 0,
   async search(_query: SearchQuery, limit: number): Promise<NormalizedSearchJob[]> {
     const results = await Promise.all(ATS_COMPANIES.map((company) => fetchCompany(company)));

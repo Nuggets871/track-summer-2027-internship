@@ -131,6 +131,13 @@ et destinations sont préremplis depuis ton profil, les résultats sont
 dédupliqués, filtrés aux stages et **scorés localement** (aucun token). Un clic
 les envoie dans **Pistes**.
 
+Pour ne pas gaspiller les quotas (JSearch 200/mois, Serper 2 500 au total) ni
+resservir les mêmes offres : chaque résultat est **mémorisé** (`DiscoveredJob`),
+une requête répétée est servie par un **cache court** (`SearchQueryCache`) sans
+rappeler l'API, un compteur par provider (`ProviderUsage`) saute une source dont
+le quota est atteint, et les offres déjà vues ne sont plus marquées « Nouveau »
+— d'où le filtre **« Nouveaux seulement »** activé par défaut.
+
 ### 📥 Pistes
 Une boîte de réception légère pour **capturer en lot** des URLs ou des
 « Entreprise — Rôle » collées les unes sous les autres, puis les trier plus

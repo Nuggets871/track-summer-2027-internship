@@ -43,6 +43,10 @@ export interface JobSearchProvider {
   requiresKey: boolean;
   /** "query" = called once per search query; "catalog" = fetched once, then filtered locally. */
   mode: "query" | "catalog";
+  /** Free-tier call budget, if any — used to skip a provider before it 429s. */
+  quota?: { limit: number; period: "day" | "month" };
+  /** How long a stored response may be served without hitting the API again. */
+  cacheTtlSeconds?: number;
   isConfigured(): boolean;
   search(query: SearchQuery, limit: number): Promise<NormalizedSearchJob[]>;
 }

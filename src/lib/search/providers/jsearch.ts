@@ -67,6 +67,8 @@ export const jsearchProvider: JobSearchProvider = {
   envVars: ["JSEARCH_API_KEY"],
   requiresKey: true,
   mode: "query",
+  quota: { limit: 190, period: "month" },
+  cacheTtlSeconds: 60 * 30,
   isConfigured: () => Boolean(process.env.JSEARCH_API_KEY),
 
   async search(query: SearchQuery, limit: number): Promise<NormalizedSearchJob[]> {

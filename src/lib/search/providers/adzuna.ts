@@ -31,6 +31,8 @@ export const adzunaProvider: JobSearchProvider = {
   envVars: ["ADZUNA_APP_ID", "ADZUNA_APP_KEY"],
   requiresKey: true,
   mode: "query",
+  quota: { limit: 240, period: "day" },
+  cacheTtlSeconds: 60 * 30,
   isConfigured: () => Boolean(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY),
 
   async search(query: SearchQuery, limit: number): Promise<NormalizedSearchJob[]> {
