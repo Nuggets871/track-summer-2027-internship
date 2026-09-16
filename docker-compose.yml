@@ -5,6 +5,10 @@ services:
       dockerfile: Dockerfile
     container_name: track-internship
     restart: unless-stopped
+    # Injects the server .env (API keys for AI + discovery) into the container.
+    # `environment` below still wins for DATABASE_URL/NODE_ENV.
+    env_file:
+      - .env
     environment:
       DATABASE_URL: file:/app/data/track-internship.db
       NODE_ENV: production
