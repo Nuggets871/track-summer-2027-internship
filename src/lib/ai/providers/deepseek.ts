@@ -26,6 +26,11 @@ export function createDeepSeekProvider(getApiKey: () => Promise<string | null>):
           messages,
           temperature: opts.temperature ?? 0.3,
           max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
+          // V4.1-Flash defaults to thinking mode. Our tasks are deterministic
+          // extraction/drafting, so non-thinking is faster, far cheaper, and
+          // keeps reasoning tokens from eating into max_tokens (which silently
+          // produced an empty `content` when the budget was tight).
+          thinking: { type: "disabled" },
           ...(opts.jsonMode ? { response_format: { type: "json_object" } } : {}),
         }),
         signal: controller.signal,
