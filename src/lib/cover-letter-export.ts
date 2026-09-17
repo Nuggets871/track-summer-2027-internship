@@ -3,7 +3,7 @@
 // this module only adds the structured letterhead (candidate contact, date,
 // recipient) around it so both formats share one source of truth.
 
-import { Document, Packer, Paragraph, TextRun } from "docx";
+import { BorderStyle, Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { prisma } from "@/lib/prisma";
 import { getProfile } from "@/lib/data/profile";
@@ -58,19 +58,48 @@ function contentBlocks(content: string): string[] {
   return content.replace(/\r\n/g, "\n").split("\n");
 }
 
+const NO_BORDERS = {
+  top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+  right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+};
+
 export async function buildCoverLetterDocx(ctx: CoverLetterExportContext): Promise<Buffer> {
-  const children: Paragraph[] = [];
+  const children: (Paragraph | Table)[] = [];
 
-  children.push(new Paragraph({ children: [new TextRun({ text: ctx.candidateName, bold: true, size: 26 })], spacing: { after: 60 } }));
-  for (const line of ctx.contactLines) {
-    children.push(new Paragraph({ children: [new TextRun({ text: line, size: 18, color: "555555" })], spacing: { after: 20 } }));
-  }
+  // Two-column letterhead: candidate on the left, recipient on the right.
+  const leftCell = new TableCell({
+    width: { size: 50, type: WidthType.PERCENTAGE },
+    borders: NO_BORDERS,
+    margins: { top: 0, bottom: 0, left: 0, right: 120 },
+    children: [
+      new Paragraph({ children: [new TextRun({ text: ctx.candidateName, bold: true, size: 26 })], spacing: { after: 60 } }),
+      ...ctx.contactLines.map(
+        (line) => new Paragraph({ children: [new TextRun({ text: line, size: 18, color: "555555" })], spacing: { after: 20 } }),
+      ),
+    ],
+  });
+  const rightCell = new TableCell({
+    width: { size: 50, type: WidthType.PERCENTAGE },
+    borders: NO_BORDERS,
+    margins: { top: 0, bottom: 0, left: 120, right: 0 },
+    children: [
+      new Paragraph({ children: [new TextRun({ text: ctx.date, size: 20 })], alignment: "right", spacing: { after: 80 } }),
+      ...ctx.recipientLines.map(
+        (line) => new Paragraph({ children: [new TextRun({ text: line, size: 20 })], alignment: "right", spacing: { after: 20 } }),
+      ),
+    ],
+  });
+  children.push(
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: NO_BORDERS,
+      rows: [new TableRow({ children: [leftCell, rightCell] })],
+    }),
+  );
 
-  children.push(new Paragraph({ text: "", spacing: { after: 260 } }));
-  children.push(new Paragraph({ children: [new TextRun({ text: ctx.date, size: 20 })], spacing: { after: 140 } }));
-  for (const line of ctx.recipientLines) {
-    children.push(new Paragraph({ children: [new TextRun({ text: line, size: 20 })], spacing: { after: 20 } }));
-  }
+  children.push(new Paragraph({ text: "", spacing: { after: 240 } }));
   if (ctx.subject) {
     children.push(new Paragraph({ children: [new TextRun({ text: ctx.subject, bold: true, size: 20 })], spacing: { before: 200, after: 160 } }));
   }
@@ -140,11 +169,7 @@ export async function buildCoverLetterPdf(ctx: CoverLetterExportContext): Promis
     y = pageHeight - margin;
   };
 
-  const drawLine = (text: string, font: PDFFont, size: number) => {
-    if (y < margin + leading) newPage();
-    page.drawText(text, { x: margin, y, size, font, color: rgb(0.12, 0.12, 0.14) });
-    y -= size + 4;
-  };
+  const inkColor = rgb(0.12, 0.12, 0.14);
 
   const writeParagraph = (text: string, font: PDFFont, size: number, after: number) => {
     for (const line of wrapText(text, font, size, maxWidth)) {
@@ -155,13 +180,30 @@ export async function buildCoverLetterPdf(ctx: CoverLetterExportContext): Promis
     y -= after;
   };
 
-  drawLine(ctx.candidateName, bold, 15);
-  for (const line of ctx.contactLines) drawLine(sanitizeForPdf(line), regular, 9.5);
-  y -= 14;
-  drawLine(ctx.date, regular, 11);
-  for (const line of ctx.recipientLines) drawLine(sanitizeForPdf(line), regular, 11);
+  // Two-column letterhead: candidate on the left, recipient right-aligned.
+  const rightEdge = pageWidth - margin;
+
+  let leftY = pageHeight - margin;
+  const drawLeftLine = (text: string, font: PDFFont, size: number, gap = 4) => {
+    page.drawText(sanitizeForPdf(text), { x: margin, y: leftY - size, size, font, color: inkColor });
+    leftY -= size + gap;
+  };
+
+  let rightY = pageHeight - margin;
+  const drawRightLine = (text: string, font: PDFFont, size: number, gap = 4) => {
+    const clean = sanitizeForPdf(text);
+    page.drawText(clean, { x: rightEdge - font.widthOfTextAtSize(clean, size), y: rightY - size, size, font, color: inkColor });
+    rightY -= size + gap;
+  };
+
+  drawLeftLine(ctx.candidateName, bold, 15, 6);
+  for (const line of ctx.contactLines) drawLeftLine(line, regular, 9.5, 3);
+
+  drawRightLine(ctx.date, regular, 11, 8);
+  for (const line of ctx.recipientLines) drawRightLine(line, regular, 11, 3);
+
+  y = Math.min(leftY, rightY) - 16;
   if (ctx.subject) {
-    y -= 8;
     writeParagraph(ctx.subject, bold, 11, 8);
   }
   y -= 6;
