@@ -15,7 +15,25 @@ export type CoverLetterExportContext = {
   recipientLines: string[];
   subject: string | null;
   content: string;
+  language: "FR" | "EN";
 };
+
+/** Builds an attachment name with underscored, ASCII-safe segments. */
+export function coverLetterFileName(
+  ctx: Pick<CoverLetterExportContext, "language" | "candidateName" | "recipientLines">,
+  extension: string,
+): string {
+  const slug = (value: string) =>
+    value
+      .normalize("NFKD")
+      .replace(/\p{M}/gu, "")
+      .replace(/[^A-Za-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+
+  const label = ctx.language === "FR" ? "Lettre" : "Cover_letter";
+  const company = ctx.recipientLines[0] ?? (ctx.language === "FR" ? "Entreprise" : "Company");
+  return `${[label, slug(ctx.candidateName), slug(company)].filter(Boolean).join("_")}.${extension}`;
+}
 
 function cleanName(profile: { firstName: string | null; lastName: string | null }): string {
   return [profile.firstName, profile.lastName].filter(Boolean).join(" ") || "Candidat";
@@ -50,6 +68,7 @@ export async function loadCoverLetterExportContext(applicationId: string): Promi
     recipientLines,
     subject: `${application.coverLetter.language === "EN" ? "Subject" : "Objet"} : ${application.title} — ${application.company.name}`,
     content: application.coverLetter.content,
+    language: application.coverLetter.language === "FR" ? "FR" : "EN",
   };
 }
 
