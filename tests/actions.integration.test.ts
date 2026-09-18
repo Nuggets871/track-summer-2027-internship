@@ -142,3 +142,54 @@ describe("backup and CSV import/export", () => {
     expect(parsed.data.some((row) => row.Poste.startsWith("Integration Test Intern"))).toBe(true);
   });
 });
+
+describe("MCP internship ingestion", () => {
+  it("adds offers, skips duplicates (by normalized URL and company+title), and rejects invalid rows", async () => {
+    const { addInternships } = await import("@/lib/internships");
+    const { prisma } = await import("@/lib/prisma");
+
+    const offers = [
+      { company: "MCP Test Co", title: "Data Intern", url: "https://jobs.example.com/data-intern?utm_source=chatgpt", country: "France", city: "Paris", source: "ChatGPT" },
+      { company: "MCP Test Co", title: "Backend Intern", url: "https://jobs.example.com/backend-intern", country: "France" },
+    ];
+
+    const before = await prisma.application.count();
+    const first = await addInternships(offers);
+    expect(first.map((result) => result.status)).toEqual(["created", "created"]);
+    expect(first.every((result) => result.id)).toBe(true);
+    expect(await prisma.application.count()).toBe(before + 2);
+
+    // The first URL differs only by its query string, proving normalization.
+    const second = await addInternships(offers);
+    expect(second.map((result) => result.status)).toEqual(["skipped", "skipped"]);
+    expect(await prisma.application.count()).toBe(before + 2);
+
+    // Two identical rows inside one call: first created, second skipped.
+    const batch = await addInternships([
+      { company: "MCP Batch Co", title: "Role", url: "https://jobs.example.com/batch" },
+      { company: "MCP Batch Co", title: "Role", url: "https://jobs.example.com/batch/" },
+    ]);
+    expect(batch.map((result) => result.status)).toEqual(["created", "skipped"]);
+
+    // One bad row must not block the valid ones: each gets its own verdict.
+    const mixed = await addInternships([
+      { company: "", title: "No company", url: "https://jobs.example.com/x" },
+      { company: "MCP Test Co", title: "Bad URL", url: "not-a-url" },
+      { company: "MCP Test Co", title: "Sane", url: "https://jobs.example.com/sane" },
+    ]);
+    expect(mixed.map((result) => result.status)).toEqual(["rejected", "rejected", "created"]);
+    expect(mixed[0].reason).toBeTruthy();
+    expect(mixed[1].reason).toBeTruthy();
+  });
+
+  it("lists stored offers with their pipeline status", async () => {
+    const { listInternships } = await import("@/lib/internships");
+
+    const all = await listInternships({ query: "MCP Test Co" });
+    expect(all.length).toBeGreaterThan(0);
+    expect(all[0]).toMatchObject({ company: "MCP Test Co" });
+    expect(all[0].status).toBe("Sauvegardée");
+    expect(typeof all[0].id).toBe("string");
+    expect(all[0].url).toContain("jobs.example.com");
+  });
+});

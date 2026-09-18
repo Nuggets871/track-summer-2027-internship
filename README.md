@@ -416,6 +416,15 @@ moment depuis **Profil > Lettre de motivation de référence**. Les données
 (base + fichiers) vivent dans les volumes Docker nommés et survivent aux
 redéploiements.
 
+## Serveur MCP (ChatGPT)
+
+L'application expose un serveur **MCP** sur `/mcp` : ChatGPT peut y **ajouter**
+et **lister** des offres de stage, avec déduplication automatique, sans jamais
+accéder directement à la base. Le endpoint est protégé par un jeton Bearer
+(`MCP_AUTH_TOKEN`) et s'appuie sur le SDK officiel
+`@modelcontextprotocol/server`. Voir [`docs/mcp.md`](docs/mcp.md) pour la
+configuration et le branchement dans ChatGPT.
+
 ## Tests
 
 ```bash

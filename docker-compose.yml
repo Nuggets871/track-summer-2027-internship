@@ -29,7 +29,18 @@ services:
       - "traefik.http.routers.track-internship.entrypoints=websecure"
       - "traefik.http.routers.track-internship.tls=true"
       - "traefik.http.routers.track-internship.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.track-internship.priority=10"
       - "traefik.http.routers.track-internship.middlewares=track-internship-auth,track-internship-security"
+
+      # MCP endpoint for ChatGPT. It authenticates with its own Bearer token
+      # (MCP_AUTH_TOKEN) inside the app, so it must bypass Traefik Basic Auth —
+      # ChatGPT cannot send both schemes. Higher priority than the main router.
+      - "traefik.http.routers.track-internship-mcp.rule=Host(`track-internship.christopher-bondier.com`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.track-internship-mcp.entrypoints=websecure"
+      - "traefik.http.routers.track-internship-mcp.tls=true"
+      - "traefik.http.routers.track-internship-mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.track-internship-mcp.priority=100"
+      - "traefik.http.routers.track-internship-mcp.middlewares=track-internship-security"
 
       - "traefik.http.middlewares.track-internship-auth.basicauth.users=${BASIC_AUTH_USERS}"
       - "traefik.http.middlewares.track-internship-auth.basicauth.realm=Internship Tracker"
