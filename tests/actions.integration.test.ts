@@ -144,7 +144,7 @@ describe("backup and CSV import/export", () => {
 });
 
 describe("MCP internship ingestion", () => {
-  it("adds offers, skips duplicates (by normalized URL and company+title), and rejects invalid rows", async () => {
+  it("stages offers in the inbox, skips duplicates, rejects invalid rows, and logs the call", async () => {
     const { addInternships } = await import("@/lib/internships");
     const { prisma } = await import("@/lib/prisma");
 
@@ -153,16 +153,22 @@ describe("MCP internship ingestion", () => {
       { company: "MCP Test Co", title: "Backend Intern", url: "https://jobs.example.com/backend-intern", country: "France" },
     ];
 
-    const before = await prisma.application.count();
+    const before = await prisma.lead.count({ where: { status: "NEW" } });
     const first = await addInternships(offers);
     expect(first.map((result) => result.status)).toEqual(["created", "created"]);
     expect(first.every((result) => result.id)).toBe(true);
-    expect(await prisma.application.count()).toBe(before + 2);
+    expect(await prisma.lead.count({ where: { status: "NEW" } })).toBe(before + 2);
 
-    // The first URL differs only by its query string, proving normalization.
+    const stored = await prisma.lead.findFirstOrThrow({ where: { company: "MCP Test Co", role: "Data Intern" } });
+    expect(stored.source).toBe("ChatGPT");
+    expect(stored.country).toBe("France");
+    expect(stored.city).toBe("Paris");
+
+    // The first URL differs only by a tracking param, proving normalization;
+    // nothing is added on a second identical run.
     const second = await addInternships(offers);
     expect(second.map((result) => result.status)).toEqual(["skipped", "skipped"]);
-    expect(await prisma.application.count()).toBe(before + 2);
+    expect(await prisma.lead.count({ where: { status: "NEW" } })).toBe(before + 2);
 
     // Two identical rows inside one call: first created, second skipped.
     const batch = await addInternships([
@@ -180,15 +186,18 @@ describe("MCP internship ingestion", () => {
     expect(mixed.map((result) => result.status)).toEqual(["rejected", "rejected", "created"]);
     expect(mixed[0].reason).toBeTruthy();
     expect(mixed[1].reason).toBeTruthy();
+
+    const logged = await prisma.mcpActivity.findFirst({ where: { tool: "addInternships" }, orderBy: { createdAt: "desc" } });
+    expect(logged).not.toBeNull();
+    expect(logged?.created).toBeGreaterThanOrEqual(1);
   });
 
-  it("lists stored offers with their pipeline status", async () => {
+  it("lists staged offers with their inbox status", async () => {
     const { listInternships } = await import("@/lib/internships");
 
     const all = await listInternships({ query: "MCP Test Co" });
     expect(all.length).toBeGreaterThan(0);
-    expect(all[0]).toMatchObject({ company: "MCP Test Co" });
-    expect(all[0].status).toBe("Sauvegardée");
+    expect(all[0]).toMatchObject({ company: "MCP Test Co", status: "À trier" });
     expect(typeof all[0].id).toBe("string");
     expect(all[0].url).toContain("jobs.example.com");
   });

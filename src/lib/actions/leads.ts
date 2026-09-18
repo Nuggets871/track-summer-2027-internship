@@ -29,7 +29,7 @@ export async function addLeadsFromText(rawText: string) {
       role = parts[1]?.trim().slice(0, 140) || null;
     }
     if (!url && !company) continue;
-    await prisma.lead.create({ data: { url, company, role } });
+    await prisma.lead.create({ data: { url, company, role, source: "Manuel" } });
     created += 1;
   }
 
@@ -62,15 +62,39 @@ export async function convertLead(leadId: string) {
     (await prisma.company.findFirst({ where: { name: companyName } })) ??
     (await prisma.company.create({ data: { name: companyName } }));
 
+  let countryId: string | undefined;
+  const countryName = lead.country?.trim();
+  if (countryName) {
+    const country = await prisma.country.upsert({
+      where: { name: countryName },
+      create: { name: countryName },
+      update: {},
+    });
+    countryId = country.id;
+  }
+
+  let cityId: string | undefined;
+  const cityName = lead.city?.trim();
+  if (cityName && countryId) {
+    const city = await prisma.city.upsert({
+      where: { name_countryId: { name: cityName, countryId } },
+      create: { name: cityName, countryId },
+      update: {},
+    });
+    cityId = city.id;
+  }
+
   const application = await prisma.application.create({
     data: {
       title: lead.role?.trim() || "À qualifier",
       companyId: company.id,
+      countryId,
+      cityId,
       jobUrl: lead.url,
-      source: "Piste",
+      source: lead.source ?? "Piste",
       statusId: savedStage.id,
       discoveredAt: new Date(),
-      notes: lead.note,
+      notes: lead.description ?? lead.note,
       nextAction: lead.url ? "Analyser l'offre" : "Qualifier la piste",
     },
   });

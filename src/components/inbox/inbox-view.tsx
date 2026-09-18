@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, X, ArrowRight, Link2, Building2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -75,15 +76,25 @@ export function InboxView({ leads }: { leads: Lead[] }) {
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-muted text-muted-foreground">
                     {lead.url ? <Link2 className="size-4" /> : <Building2 className="size-4" />}
                   </span>
-                  <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <p className="truncate text-sm font-medium text-foreground">
                       {[lead.company, lead.role].filter(Boolean).join(" — ") || lead.url}
                     </p>
-                    {lead.url && (
-                      <a href={lead.url} target="_blank" rel="noreferrer" className="truncate text-xs text-primary hover:underline">
-                        {lead.url}
-                      </a>
+                    {(lead.city || lead.country || lead.description) && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {[[lead.city, lead.country].filter(Boolean).join(", "), lead.description].filter(Boolean).join(" · ")}
+                      </p>
                     )}
+                    <div className="flex min-w-0 items-center gap-2">
+                      {lead.source && (
+                        <Badge variant={lead.source === "ChatGPT" ? "primary" : "outline"}>{lead.source}</Badge>
+                      )}
+                      {lead.url && (
+                        <a href={lead.url} target="_blank" rel="noreferrer" className="truncate text-xs text-primary hover:underline">
+                          {lead.url}
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <Button size="sm" onClick={() => convert(lead.id)} disabled={pending}>

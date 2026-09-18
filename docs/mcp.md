@@ -13,8 +13,20 @@ tables `Application` / `Company` / `Country` / `City` que le reste de l'app).
 
 | Outil | Rôle |
 |---|---|
-| `addInternships` | Ajoute une ou plusieurs offres. Déduplique par URL normalisée, puis par entreprise + intitulé. Retourne pour chaque offre `created`, `skipped` (déjà présente) ou `rejected` (champs invalides). |
-| `listInternships` | Liste les offres déjà enregistrées (id, entreprise, poste, url, pays, statut), avec filtres `query` / `status` / `limit`. À utiliser avant d'ajouter, pour vérifier les doublons. |
+| `addInternships` | Dépose une ou plusieurs offres dans la boîte de réception **Pistes** (pas directement dans les opportunités : tu les tries ensuite). Déduplique par URL normalisée, puis par entreprise + intitulé, contre les pistes **et** les opportunités. Retourne pour chaque offre `created`, `skipped` (déjà présente) ou `rejected` (champs invalides). |
+| `listInternships` | Liste les offres du sas Pistes (id, entreprise, poste, url, pays, ville, statut, source), avec filtres `query` / `status` / `limit`. Statuts renvoyés : `À trier`, `Convertie`, `Écartée`. |
+
+## Suivi sur le site
+
+La page **Pistes** affiche un panneau **Synchro ChatGPT** : dernière activité,
+nombre d'offres ajoutées par ChatGPT, en attente de tri, et les 5 derniers
+appels (créés / ignorés / rejetés). Chaque appel d'outil MCP est journalisé dans
+la table `McpActivity` (best-effort, jamais bloquant). Chaque offre du sas
+porte un badge de **source** (`ChatGPT`, `Manuel`, `Recherche`).
+
+Pour un ajout **quotidien** : crée une *Scheduled Task* ChatGPT qui cherche des
+offres et appelle `addInternships`. Les offres arrivent dans **Pistes**, où tu
+les convertis ou les écartes.
 
 ## 1. Configurer le(s) secret(s)
 

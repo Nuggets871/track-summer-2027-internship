@@ -15,7 +15,7 @@ export function buildMcpServer(): McpServer {
     "addInternships",
     {
       description:
-        "Ajoute une ou plusieurs offres de stage à Stage Copilot. Les doublons sont ignorés (même URL normalisée, ou même entreprise + intitulé). Retourne pour chaque offre son statut : created, skipped (déjà présente) ou rejected (champs invalides).",
+        "Ajoute une ou plusieurs offres de stage dans la boîte de réception « Pistes » de Stage Copilot (pas directement dans les opportunités : l'utilisateur les trie ensuite). Les doublons sont ignorés (même URL normalisée, ou même entreprise + intitulé, déjà en pistes ou en opportunités). Retourne pour chaque offre son statut : created, skipped (déjà présente) ou rejected (champs invalides).",
       inputSchema: z.object({
         internships: z
           .array(
@@ -51,7 +51,7 @@ export function buildMcpServer(): McpServer {
     "listInternships",
     {
       description:
-        "Liste les offres de stage déjà enregistrées dans Stage Copilot, les plus récentes d'abord. À utiliser pour vérifier ce qui existe déjà avant d'en ajouter de nouvelles.",
+        "Liste les offres déjà présentes dans la boîte de réception « Pistes » de Stage Copilot, les plus récentes d'abord, avec leur statut (À trier, Convertie, Écartée). À utiliser pour vérifier ce qui existe déjà avant d'en ajouter de nouvelles. Les opportunités déjà converties y figurent aussi, marquées « Convertie ».",
       inputSchema: z.object({
         query: z.string().optional().describe("Filtre texte sur le nom de l'entreprise ou l'intitulé du poste"),
         status: z.string().optional().describe("Filtre sur le statut, ex. Sauvegardée, En préparation, Envoyée"),

@@ -35,7 +35,7 @@ const saveSchema = z.object({
 export async function addSearchResultToInbox(raw: unknown) {
   const data = saveSchema.parse(raw);
   await prisma.lead.create({
-    data: { url: data.url, company: data.company ?? null, role: data.title ?? null, note: "Trouvé via Recherche" },
+    data: { url: data.url, company: data.company ?? null, role: data.title ?? null, note: "Trouvé via Recherche", source: "Recherche" },
   });
   revalidatePath("/inbox");
   return { ok: true };

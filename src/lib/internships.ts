@@ -1,14 +1,14 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { ensureApplicationPipelineStages } from "@/lib/data/pipeline-stages";
-import { logActivity } from "@/lib/data/activity";
+import { clamp } from "@/lib/utils";
 
 /**
  * Ingestion of external internship offers (used by the MCP server for
- * ChatGPT). Writes through the same Application/Company/Country tables as the
- * rest of the app — no direct database access is ever exposed to the caller.
- * Deduplication is by normalized URL, then by company + title, so re-running
- * the same discovery never creates a second opportunity.
+ * ChatGPT). Offers are staged in the "Pistes" inbox — not turned into
+ * opportunities directly — so they can be reviewed and triaged by hand.
+ * Deduplication is by normalized URL, then by company + title, against both
+ * the inbox and the opportunities already tracked. The database is never
+ * exposed to the caller.
  */
 
 export type InternshipInput = {
@@ -38,10 +38,23 @@ export type InternshipSummary = {
   title: string;
   url: string | null;
   country: string | null;
+  city: string | null;
   status: string;
+  source: string | null;
+  createdAt: Date;
 };
 
 export const MAX_INTERNSHIPS_PER_CALL = 50;
+
+const LEAD_STATUS_LABELS: Record<string, string> = {
+  NEW: "À trier",
+  CONVERTED: "Convertie",
+  DISCARDED: "Écartée",
+};
+
+export function leadStatusLabel(status: string): string {
+  return LEAD_STATUS_LABELS[status] ?? status;
+}
 
 // Marketing/attribution params that don't change which posting a URL points to.
 // Everything else (e.g. `gh_jid`) is kept, so distinct offers are never merged.
@@ -70,6 +83,10 @@ export function normalizeJobUrl(raw: string): string {
   } catch {
     return raw.trim().toLowerCase();
   }
+}
+
+function duplicateKey(company: string, title: string): string {
+  return `${company.toLowerCase()}::${title.toLowerCase()}`;
 }
 
 type ValidatedInternship = {
@@ -118,31 +135,36 @@ function validateInternship(
 }
 
 /**
- * Adds offers as opportunities on the "Sauvegardée" stage. Never throws for a
- * single bad row: every input yields a `created`, `skipped` (already present)
- * or `rejected` result so the caller can report per-offer.
+ * Stages offers in the "Pistes" inbox. Never throws for a single bad row:
+ * every input yields a `created`, `skipped` (already present here or among
+ * opportunities) or `rejected` (invalid fields) result.
  */
 export async function addInternships(items: InternshipInput[]): Promise<InternshipIngestResult[]> {
-  const stages = await ensureApplicationPipelineStages();
-  const savedStage = stages.find((stage) => stage.key === "SAVED");
-  if (!savedStage) throw new Error('Statut "Sauvegardée" introuvable.');
+  const batch = items.slice(0, MAX_INTERNSHIPS_PER_CALL);
 
-  const existing = await prisma.application.findMany({
-    where: { deletedAt: null },
-    select: { id: true, jobUrl: true, title: true, company: { select: { name: true } } },
-  });
+  const [leads, applications] = await Promise.all([
+    prisma.lead.findMany({ select: { id: true, url: true, company: true, role: true } }),
+    prisma.application.findMany({
+      where: { deletedAt: null },
+      select: { id: true, jobUrl: true, title: true, company: { select: { name: true } } },
+    }),
+  ]);
 
   const idByUrl = new Map<string, string>();
   const idByCompanyTitle = new Map<string, string>();
-  for (const row of existing) {
-    if (row.jobUrl) idByUrl.set(normalizeJobUrl(row.jobUrl), row.id);
-    idByCompanyTitle.set(`${row.company.name.toLowerCase()}::${row.title.toLowerCase()}`, row.id);
+  for (const lead of leads) {
+    if (lead.url) idByUrl.set(normalizeJobUrl(lead.url), lead.id);
+    if (lead.company && lead.role) idByCompanyTitle.set(duplicateKey(lead.company, lead.role), lead.id);
+  }
+  for (const application of applications) {
+    if (application.jobUrl) idByUrl.set(normalizeJobUrl(application.jobUrl), application.id);
+    idByCompanyTitle.set(duplicateKey(application.company.name, application.title), application.id);
   }
 
   const seenThisBatch = new Set<string>();
   const results: InternshipIngestResult[] = [];
 
-  for (const input of items.slice(0, MAX_INTERNSHIPS_PER_CALL)) {
+  for (const input of batch) {
     const validated = validateInternship(input);
     if (!validated.ok) {
       results.push({ status: "rejected", id: null, company: validated.company, title: validated.title, url: validated.url, reason: validated.reason });
@@ -151,7 +173,7 @@ export async function addInternships(items: InternshipInput[]): Promise<Internsh
 
     const { company, title, url, country, city, description, source } = validated.value;
     const normalizedUrl = normalizeJobUrl(url);
-    const companyTitleKey = `${company.toLowerCase()}::${title.toLowerCase()}`;
+    const companyTitleKey = duplicateKey(company, title);
 
     if (seenThisBatch.has(normalizedUrl)) {
       results.push({ status: "skipped", id: null, company, title, url, reason: "Doublon dans la même requête" });
@@ -161,98 +183,90 @@ export async function addInternships(items: InternshipInput[]): Promise<Internsh
     const duplicateId = idByUrl.get(normalizedUrl) ?? idByCompanyTitle.get(companyTitleKey);
     if (duplicateId) {
       seenThisBatch.add(normalizedUrl);
-      results.push({ status: "skipped", id: duplicateId, company, title, url, reason: "Offre déjà enregistrée" });
+      results.push({ status: "skipped", id: duplicateId, company, title, url, reason: "Offre déjà enregistrée (pistes ou opportunités)" });
       continue;
     }
 
-    const companyRow =
-      (await prisma.company.findFirst({ where: { name: company } })) ??
-      (await prisma.company.create({ data: { name: company } }));
-
-    let countryId: string | undefined;
-    if (country) {
-      const countryRow = await prisma.country.upsert({
-        where: { name: country },
-        create: { name: country },
-        update: {},
-      });
-      countryId = countryRow.id;
-    }
-
-    let cityId: string | undefined;
-    if (city && countryId) {
-      const cityRow = await prisma.city.upsert({
-        where: { name_countryId: { name: city, countryId } },
-        create: { name: city, countryId },
-        update: {},
-      });
-      cityId = cityRow.id;
-    }
-
-    const application = await prisma.application.create({
+    const lead = await prisma.lead.create({
       data: {
-        title,
-        companyId: companyRow.id,
-        countryId,
-        cityId,
-        jobUrl: url,
+        url,
+        company,
+        role: title,
+        country,
+        city,
+        description,
         source: source ?? "ChatGPT",
-        statusId: savedStage.id,
-        discoveredAt: new Date(),
-        notes: description,
-        nextAction: "Analyser l'offre",
+        status: "NEW",
       },
     });
 
-    await logActivity(application.id, "CREATED", "Opportunité ajoutée depuis ChatGPT (MCP)");
-
-    idByUrl.set(normalizedUrl, application.id);
-    idByCompanyTitle.set(companyTitleKey, application.id);
+    idByUrl.set(normalizedUrl, lead.id);
+    idByCompanyTitle.set(companyTitleKey, lead.id);
     seenThisBatch.add(normalizedUrl);
 
-    results.push({ status: "created", id: application.id, company, title, url });
+    results.push({ status: "created", id: lead.id, company, title, url });
   }
 
-  revalidatePath("/", "layout");
-  revalidatePath("/opportunities");
+  await logMcpActivity("addInternships", {
+    created: results.filter((result) => result.status === "created").length,
+    skipped: results.filter((result) => result.status === "skipped").length,
+    rejected: results.filter((result) => result.status === "rejected").length,
+    detail: JSON.stringify(results).slice(0, 8000),
+  });
+
+  revalidatePath("/inbox");
   return results;
 }
 
 /**
- * Lists stored opportunities, newest first, for the caller to check what is
- * already tracked before adding more. Optional case-insensitive `query`
- * filter on company/title, and `status` filter on the pipeline label.
+ * Lists the offers staged in the inbox, newest first, for the caller to check
+ * what already exists before adding more. Optional case-insensitive `query`
+ * filter on company/title, and `status` filter (key or French label).
  */
 export async function listInternships(options: { query?: string | null; status?: string | null; limit?: number | null } = {}): Promise<InternshipSummary[]> {
   const requestedLimit = options.limit ?? 50;
-  const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit as number) : 50, 1), 200);
+  const limit = clamp(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit as number) : 50, 1, 200);
 
-  const rows = await prisma.application.findMany({
-    where: { deletedAt: null },
-    select: {
-      id: true,
-      title: true,
-      jobUrl: true,
-      company: { select: { name: true } },
-      country: { select: { name: true } },
-      status: { select: { label: true } },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+  const rows = await prisma.lead.findMany({ orderBy: { createdAt: "desc" } });
 
   const query = options.query?.trim().toLowerCase();
   const status = options.status?.trim().toLowerCase();
 
-  return rows
-    .filter((row) => !query || row.company.name.toLowerCase().includes(query) || row.title.toLowerCase().includes(query))
-    .filter((row) => !status || row.status.label.toLowerCase().includes(status))
-    .slice(0, limit)
-    .map((row) => ({
-      id: row.id,
-      company: row.company.name,
-      title: row.title,
-      url: row.jobUrl,
-      country: row.country?.name ?? null,
-      status: row.status.label,
-    }));
+  const filtered = rows
+    .filter((row) => !query || row.company?.toLowerCase().includes(query) || row.role?.toLowerCase().includes(query))
+    .filter((row) => {
+      if (!status) return true;
+      return row.status.toLowerCase().includes(status) || leadStatusLabel(row.status).toLowerCase().includes(status);
+    })
+    .slice(0, limit);
+
+  await logMcpActivity("listInternships", { listed: filtered.length });
+
+  return filtered.map((row) => ({
+    id: row.id,
+    company: row.company ?? "",
+    title: row.role ?? "",
+    url: row.url,
+    country: row.country,
+    city: row.city,
+    status: leadStatusLabel(row.status),
+    source: row.source,
+    createdAt: row.createdAt,
+  }));
+}
+
+type McpActivityInput = {
+  created?: number;
+  skipped?: number;
+  rejected?: number;
+  listed?: number;
+  detail?: string;
+};
+
+async function logMcpActivity(tool: string, data: McpActivityInput): Promise<void> {
+  try {
+    await prisma.mcpActivity.create({ data: { tool, ...data } });
+  } catch {
+    // Best-effort: monitoring must never break ingestion.
+  }
 }
