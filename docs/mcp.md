@@ -14,7 +14,7 @@ tables `Application` / `Company` / `Country` / `City` que le reste de l'app).
 | Outil | Rôle |
 |---|---|
 | `addInternships` | Dépose une ou plusieurs offres dans la boîte de réception **Pistes** (pas directement dans les opportunités : tu les tries ensuite). Déduplique par URL normalisée, puis par entreprise + intitulé, contre les pistes **et** les opportunités. Retourne pour chaque offre `created`, `skipped` (déjà présente) ou `rejected` (champs invalides). |
-| `listInternships` | Liste les offres du sas Pistes (id, entreprise, poste, url, pays, ville, statut, source), avec filtres `query` / `status` / `limit`. Statuts renvoyés : `À trier`, `Convertie`, `Écartée`. |
+| `listInternships` | Liste ce qui existe déjà : offres en attente dans Pistes (`location: "inbox"`) et opportunités suivies (`location: "opportunities"`), avec filtres `query` / `status` / `limit`. Sert à vérifier les doublons. |
 
 ## Suivi sur le site
 

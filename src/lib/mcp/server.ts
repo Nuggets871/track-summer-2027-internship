@@ -51,7 +51,7 @@ export function buildMcpServer(): McpServer {
     "listInternships",
     {
       description:
-        "Liste les offres déjà présentes dans la boîte de réception « Pistes » de Stage Copilot, les plus récentes d'abord, avec leur statut (À trier, Convertie, Écartée). À utiliser pour vérifier ce qui existe déjà avant d'en ajouter de nouvelles. Les opportunités déjà converties y figurent aussi, marquées « Convertie ».",
+        "Liste ce qui existe déjà dans Stage Copilot : les offres en attente de tri (location « inbox ») et les opportunités déjà suivies (location « opportunities »), les plus récentes d'abord. À utiliser pour vérifier les doublons avant d'ajouter de nouvelles offres. Chaque entrée précise sa location et son statut.",
       inputSchema: z.object({
         query: z.string().optional().describe("Filtre texte sur le nom de l'entreprise ou l'intitulé du poste"),
         status: z.string().optional().describe("Filtre sur le statut, ex. Sauvegardée, En préparation, Envoyée"),

@@ -41,6 +41,8 @@ export type InternshipSummary = {
   city: string | null;
   status: string;
   source: string | null;
+  /** "inbox" = à trier dans Pistes ; "opportunities" = déjà suivie. */
+  location: "inbox" | "opportunities";
   createdAt: Date;
 };
 
@@ -219,40 +221,72 @@ export async function addInternships(items: InternshipInput[]): Promise<Internsh
 }
 
 /**
- * Lists the offers staged in the inbox, newest first, for the caller to check
- * what already exists before adding more. Optional case-insensitive `query`
- * filter on company/title, and `status` filter (key or French label).
+ * Lists what already exists so the caller can avoid duplicates: offers waiting
+ * in the inbox (`location: "inbox"`) and opportunities already tracked
+ * (`location: "opportunities"`). Optional case-insensitive `query` filter on
+ * company/title, and `status` filter (key or French label).
  */
 export async function listInternships(options: { query?: string | null; status?: string | null; limit?: number | null } = {}): Promise<InternshipSummary[]> {
   const requestedLimit = options.limit ?? 50;
   const limit = clamp(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit as number) : 50, 1, 200);
-
-  const rows = await prisma.lead.findMany({ orderBy: { createdAt: "desc" } });
-
   const query = options.query?.trim().toLowerCase();
   const status = options.status?.trim().toLowerCase();
 
-  const filtered = rows
-    .filter((row) => !query || row.company?.toLowerCase().includes(query) || row.role?.toLowerCase().includes(query))
-    .filter((row) => {
-      if (!status) return true;
-      return row.status.toLowerCase().includes(status) || leadStatusLabel(row.status).toLowerCase().includes(status);
-    })
+  const [leads, applications] = await Promise.all([
+    // Only NEW leads: converted ones are already represented by their application.
+    prisma.lead.findMany({ where: { status: "NEW" }, orderBy: { createdAt: "desc" } }),
+    prisma.application.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        title: true,
+        jobUrl: true,
+        source: true,
+        createdAt: true,
+        company: { select: { name: true } },
+        country: { select: { name: true } },
+        city: { select: { name: true } },
+        status: { select: { label: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
+
+  const items: InternshipSummary[] = [
+    ...leads.map((row) => ({
+      id: row.id,
+      company: row.company ?? "",
+      title: row.role ?? "",
+      url: row.url,
+      country: row.country,
+      city: row.city,
+      status: leadStatusLabel(row.status),
+      source: row.source,
+      location: "inbox" as const,
+      createdAt: row.createdAt,
+    })),
+    ...applications.map((row) => ({
+      id: row.id,
+      company: row.company.name,
+      title: row.title,
+      url: row.jobUrl,
+      country: row.country?.name ?? null,
+      city: row.city?.name ?? null,
+      status: row.status.label,
+      source: row.source,
+      location: "opportunities" as const,
+      createdAt: row.createdAt,
+    })),
+  ];
+
+  const filtered = items
+    .filter((item) => !query || item.company.toLowerCase().includes(query) || item.title.toLowerCase().includes(query))
+    .filter((item) => !status || item.status.toLowerCase().includes(status))
     .slice(0, limit);
 
   await logMcpActivity("listInternships", { listed: filtered.length });
 
-  return filtered.map((row) => ({
-    id: row.id,
-    company: row.company ?? "",
-    title: row.role ?? "",
-    url: row.url,
-    country: row.country,
-    city: row.city,
-    status: leadStatusLabel(row.status),
-    source: row.source,
-    createdAt: row.createdAt,
-  }));
+  return filtered;
 }
 
 type McpActivityInput = {
