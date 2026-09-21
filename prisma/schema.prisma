@@ -170,20 +170,25 @@ model Activity {
 // ---------------------------------------------------------------------------
 
 model Lead {
-  id          String   @id @default(cuid())
-  url         String?
-  company     String?
-  role        String?
-  note        String?
-  country     String?
-  city        String?
-  description String?
-  source      String? // "ChatGPT", "Manuel", "Recherche", ...
-  status      String   @default("NEW") // NEW | CONVERTED | DISCARDED
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  kind         String   @default("ADVERTISED") // ADVERTISED | SPONTANEOUS
+  url          String?
+  company      String?
+  role         String?
+  note         String?
+  country      String?
+  city         String?
+  description  String? // ADVERTISED: job description
+  channel      String? // SPONTANEOUS: EMAIL | LINKEDIN | WEBSITE | CONTACT | OTHER
+  contactName  String? // SPONTANEOUS: person to reach out to
+  contactValue String? // SPONTANEOUS: email address, profile link or form URL
+  source       String? // "ChatGPT", "Manuel", "Recherche", ...
+  status       String   @default("NEW") // NEW | CONVERTED | DISCARDED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([status])
+  @@index([kind])
   @@index([createdAt])
 }
 

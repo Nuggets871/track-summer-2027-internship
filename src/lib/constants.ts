@@ -180,6 +180,21 @@ export const OFFER_STATUSES = [
   { value: "DECLINED", label: "Déclinée" },
 ] as const;
 
+// How a spontaneous application reaches a company — shared by the manual
+// form and the MCP "addSpontaneousTargets" tool.
+export const OUTREACH_CHANNELS = [
+  { value: "EMAIL", label: "E-mail" },
+  { value: "LINKEDIN", label: "LinkedIn" },
+  { value: "WEBSITE", label: "Site / formulaire" },
+  { value: "CONTACT", label: "Contact personnel / événement" },
+  { value: "OTHER", label: "Autre" },
+] as const;
+
+export function outreachChannelLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return OUTREACH_CHANNELS.find((channel) => channel.value === value)?.label ?? value;
+}
+
 export const DEFAULT_SOURCES = [
   "LinkedIn",
   "Site entreprise",

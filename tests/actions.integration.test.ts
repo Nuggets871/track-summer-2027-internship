@@ -197,8 +197,47 @@ describe("MCP internship ingestion", () => {
 
     const all = await listInternships({ query: "MCP Test Co" });
     expect(all.length).toBeGreaterThan(0);
-    expect(all[0]).toMatchObject({ company: "MCP Test Co", status: "À trier" });
+    expect(all[0]).toMatchObject({ company: "MCP Test Co", status: "À trier", kind: "ADVERTISED" });
     expect(typeof all[0].id).toBe("string");
     expect(all[0].url).toContain("jobs.example.com");
+  });
+
+  it("stages spontaneous targets with their own fields and dedupes them separately", async () => {
+    const { addSpontaneousTargets } = await import("@/lib/spontaneous-targets");
+    const { listInternships } = await import("@/lib/internships");
+    const { prisma } = await import("@/lib/prisma");
+
+    const first = await addSpontaneousTargets([
+      { company: "Spont Co", targetRole: "Data analyst", country: "France", city: "Lyon", channel: "linkedin", contactName: "Ada", contactValue: "https://linkedin.com/in/ada", notes: "Équipe data en croissance" },
+      { company: "Spont Co", targetRole: "Data analyst" },
+      { company: "", targetRole: "Data analyst" },
+      { company: "Spont Co", targetRole: "Product manager", channel: "carrier-pigeon" },
+    ]);
+    expect(first.map((result) => result.status)).toEqual(["created", "skipped", "rejected", "rejected"]);
+
+    const stored = await prisma.lead.findFirstOrThrow({ where: { company: "Spont Co", role: "Data analyst" } });
+    expect(stored.kind).toBe("SPONTANEOUS");
+    expect(stored.channel).toBe("LINKEDIN");
+    expect(stored.contactName).toBe("Ada");
+    expect(stored.note).toBe("Équipe data en croissance");
+
+    // Same company+role is deduped against the existing target; another role at
+    // the same company is still allowed.
+    const again = await addSpontaneousTargets([
+      { company: "Spont Co", targetRole: "Data analyst" },
+      { company: "Spont Co", targetRole: "Analytics engineer" },
+    ]);
+    expect(again.map((result) => result.status)).toEqual(["skipped", "created"]);
+
+    // The two kinds are listed independently.
+    const spontaneous = await listInternships({ kind: "SPONTANEOUS" });
+    expect(spontaneous.every((row) => row.kind === "SPONTANEOUS")).toBe(true);
+    expect(spontaneous.some((row) => row.company === "Spont Co")).toBe(true);
+
+    const advertised = await listInternships({ kind: "ADVERTISED" });
+    expect(advertised.every((row) => row.kind === "ADVERTISED")).toBe(true);
+
+    const logged = await prisma.mcpActivity.findFirst({ where: { tool: "addSpontaneousTargets" }, orderBy: { createdAt: "desc" } });
+    expect(logged?.created).toBeGreaterThanOrEqual(1);
   });
 });

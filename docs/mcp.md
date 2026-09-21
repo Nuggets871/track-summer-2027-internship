@@ -13,20 +13,25 @@ tables `Application` / `Company` / `Country` / `City` que le reste de l'app).
 
 | Outil | Rôle |
 |---|---|
-| `addInternships` | Dépose une ou plusieurs offres dans la boîte de réception **Pistes** (pas directement dans les opportunités : tu les tries ensuite). Déduplique par URL normalisée, puis par entreprise + intitulé, contre les pistes **et** les opportunités. Retourne pour chaque offre `created`, `skipped` (déjà présente) ou `rejected` (champs invalides). |
-| `listInternships` | Liste ce qui existe déjà : offres en attente dans Pistes (`location: "inbox"`) et opportunités suivies (`location: "opportunities"`), avec filtres `query` / `status` / `limit`. Sert à vérifier les doublons. |
+| `addInternships` | Dépose une ou plusieurs **offres publiées** (URL d'annonce obligatoire) dans la section **Offres** de la boîte de réception Pistes (pas directement dans les opportunités : tu les tries ensuite). Déduplique par URL normalisée, puis par entreprise + intitulé, contre les pistes **et** les opportunités. Retourne pour chaque offre `created`, `skipped` (déjà présente) ou `rejected` (champs invalides). |
+| `addSpontaneousTargets` | Dépose une ou plusieurs **candidatures spontanées** dans la section dédiée de Pistes : entreprise + rôle visé obligatoires, avec pays/ville, canal de contact (`EMAIL`, `LINKEDIN`, `WEBSITE`, `CONTACT`, `OTHER`), contact et notes. Déduplique par entreprise + rôle visé, contre les pistes **et** les opportunités. Mêmes statuts `created` / `skipped` / `rejected`. |
+| `listInternships` | Liste ce qui existe déjà : pistes en attente (`location: "inbox"`, avec leur `kind` `ADVERTISED` ou `SPONTANEOUS`) et opportunités suivies (`location: "opportunities"`), avec filtres `query` / `status` / `kind` / `limit`. Sert à vérifier les doublons. |
 
 ## Suivi sur le site
 
 La page **Pistes** affiche un panneau **Synchro ChatGPT** : dernière activité,
 nombre d'offres ajoutées par ChatGPT, en attente de tri, et les 5 derniers
 appels (créés / ignorés / rejetés). Chaque appel d'outil MCP est journalisé dans
-la table `McpActivity` (best-effort, jamais bloquant). Chaque offre du sas
-porte un badge de **source** (`ChatGPT`, `Manuel`, `Recherche`).
+la table `McpActivity` (best-effort, jamais bloquant). Le sas est scindé en deux
+sections aux champs adaptés — **Offres** (lien d'annonce, description) et
+**Candidatures spontanées** (rôle visé, canal de contact, contact, notes) —
+chacune avec son badge de **source** (`ChatGPT`, `Manuel`, `Recherche`). Il n'y
+a plus de collage manuel : tout entre par MCP.
 
 Pour un ajout **quotidien** : crée une *Scheduled Task* ChatGPT qui cherche des
-offres et appelle `addInternships`. Les offres arrivent dans **Pistes**, où tu
-les convertis ou les écartes.
+offres et appelle `addInternships`, et/ou qui identifie des entreprises à
+contacter et appelle `addSpontaneousTargets`. Tout arrive dans **Pistes**, où tu
+convertis ou écartes.
 
 ## 1. Configurer le(s) secret(s)
 

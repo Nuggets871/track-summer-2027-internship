@@ -32,6 +32,8 @@ export type InternshipIngestResult = {
   reason?: string;
 };
 
+export type LeadKind = "ADVERTISED" | "SPONTANEOUS";
+
 export type InternshipSummary = {
   id: string;
   company: string;
@@ -43,6 +45,8 @@ export type InternshipSummary = {
   source: string | null;
   /** "inbox" = à trier dans Pistes ; "opportunities" = déjà suivie. */
   location: "inbox" | "opportunities";
+  /** Leads carry their kind; tracked opportunities are always advertised. */
+  kind: LeadKind;
   createdAt: Date;
 };
 
@@ -87,7 +91,7 @@ export function normalizeJobUrl(raw: string): string {
   }
 }
 
-function duplicateKey(company: string, title: string): string {
+export function duplicateKey(company: string, title: string): string {
   return `${company.toLowerCase()}::${title.toLowerCase()}`;
 }
 
@@ -145,7 +149,7 @@ export async function addInternships(items: InternshipInput[]): Promise<Internsh
   const batch = items.slice(0, MAX_INTERNSHIPS_PER_CALL);
 
   const [leads, applications] = await Promise.all([
-    prisma.lead.findMany({ select: { id: true, url: true, company: true, role: true } }),
+    prisma.lead.findMany({ where: { kind: "ADVERTISED" }, select: { id: true, url: true, company: true, role: true } }),
     prisma.application.findMany({
       where: { deletedAt: null },
       select: { id: true, jobUrl: true, title: true, company: { select: { name: true } } },
@@ -191,6 +195,7 @@ export async function addInternships(items: InternshipInput[]): Promise<Internsh
 
     const lead = await prisma.lead.create({
       data: {
+        kind: "ADVERTISED",
         url,
         company,
         role: title,
@@ -226,15 +231,17 @@ export async function addInternships(items: InternshipInput[]): Promise<Internsh
  * (`location: "opportunities"`). Optional case-insensitive `query` filter on
  * company/title, and `status` filter (key or French label).
  */
-export async function listInternships(options: { query?: string | null; status?: string | null; limit?: number | null } = {}): Promise<InternshipSummary[]> {
+export async function listInternships(options: { query?: string | null; status?: string | null; kind?: string | null; limit?: number | null } = {}): Promise<InternshipSummary[]> {
   const requestedLimit = options.limit ?? 50;
   const limit = clamp(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit as number) : 50, 1, 200);
   const query = options.query?.trim().toLowerCase();
   const status = options.status?.trim().toLowerCase();
+  const kind = options.kind?.trim().toUpperCase();
+  const kindFilter = kind === "ADVERTISED" || kind === "SPONTANEOUS" ? kind : undefined;
 
   const [leads, applications] = await Promise.all([
     // Only NEW leads: converted ones are already represented by their application.
-    prisma.lead.findMany({ where: { status: "NEW" }, orderBy: { createdAt: "desc" } }),
+    prisma.lead.findMany({ where: { status: "NEW", ...(kindFilter ? { kind: kindFilter } : {}) }, orderBy: { createdAt: "desc" } }),
     prisma.application.findMany({
       where: { deletedAt: null },
       select: {
@@ -263,20 +270,26 @@ export async function listInternships(options: { query?: string | null; status?:
       status: leadStatusLabel(row.status),
       source: row.source,
       location: "inbox" as const,
+      kind: (row.kind === "SPONTANEOUS" ? "SPONTANEOUS" : "ADVERTISED") as LeadKind,
       createdAt: row.createdAt,
     })),
-    ...applications.map((row) => ({
-      id: row.id,
-      company: row.company.name,
-      title: row.title,
-      url: row.jobUrl,
-      country: row.country?.name ?? null,
-      city: row.city?.name ?? null,
-      status: row.status.label,
-      source: row.source,
-      location: "opportunities" as const,
-      createdAt: row.createdAt,
-    })),
+    // Filtering on spontaneous targets excludes tracked opportunities, which
+    // are always advertised.
+    ...(kindFilter === "SPONTANEOUS"
+      ? []
+      : applications.map((row) => ({
+          id: row.id,
+          company: row.company.name,
+          title: row.title,
+          url: row.jobUrl,
+          country: row.country?.name ?? null,
+          city: row.city?.name ?? null,
+          status: row.status.label,
+          source: row.source,
+          location: "opportunities" as const,
+          kind: "ADVERTISED" as LeadKind,
+          createdAt: row.createdAt,
+        }))),
   ];
 
   const filtered = items
@@ -289,7 +302,7 @@ export async function listInternships(options: { query?: string | null; status?:
   return filtered;
 }
 
-type McpActivityInput = {
+export type McpActivityInput = {
   created?: number;
   skipped?: number;
   rejected?: number;
@@ -297,7 +310,7 @@ type McpActivityInput = {
   detail?: string;
 };
 
-async function logMcpActivity(tool: string, data: McpActivityInput): Promise<void> {
+export async function logMcpActivity(tool: string, data: McpActivityInput): Promise<void> {
   try {
     await prisma.mcpActivity.create({ data: { tool, ...data } });
   } catch {
