@@ -415,14 +415,26 @@ export async function recalculateJobMatch(applicationId: string) {
  * been edited since it was first imported.
  */
 export async function reanalyzeOpportunity(applicationId: string) {
-  const existing = await prisma.jobAnalysis.findUniqueOrThrow({ where: { applicationId } });
+  const application = await prisma.application.findUniqueOrThrow({
+    where: { id: applicationId },
+    include: { jobAnalysis: true, company: true },
+  });
+  const existing = application.jobAnalysis;
+  const sourceUrl = existing?.sourceUrl ?? application.jobUrl ?? null;
 
   let extracted: ExtractedJobData;
-  const html = existing.sourceUrl ? await fetchHtml(existing.sourceUrl) : null;
+  const html = sourceUrl ? await fetchHtml(sourceUrl) : null;
   if (html && html.trim().length >= 200) {
     extracted = extractJobPostingFromHtml(html);
+  } else if (existing?.rawExtractedText) {
+    // Page no longer scrapable (or absent): reuse the previous extraction.
+    extracted = extractJobPostingFromText(existing.rawExtractedText);
+  } else if (application.notes) {
+    // A staged lead converted from Pistes: its note/description is the only
+    // content available when the posting can't be scraped.
+    extracted = extractJobPostingFromText(application.notes);
   } else {
-    extracted = extractJobPostingFromText(existing.rawExtractedText ?? "");
+    throw new Error("Rien à analyser : cette opportunité n'a ni annonce récupérable ni description.");
   }
 
   if (await isAiConfigured()) {
@@ -431,35 +443,49 @@ export async function reanalyzeOpportunity(applicationId: string) {
   }
 
   const { match, eligibility } = await runMatchAndEligibility(extracted);
+  const profile = await getProfile();
 
-  await prisma.jobAnalysis.update({
+  // upsert, not update: a lead converted from Pistes has no analysis yet.
+  await prisma.jobAnalysis.upsert({
     where: { applicationId },
-    data: {
-      extractionMethod: extracted.extractionMethod,
-      rawExtractedText: extracted.rawText.slice(0, 8000),
-      responsibilities: extracted.responsibilities,
-      qualifications: extracted.qualifications,
-      requiredSkills: JSON.stringify(extracted.requiredSkills),
-      requiredLanguages: JSON.stringify(extracted.requiredLanguages),
-      requiredEducationLevel: extracted.requiredEducationLevel,
-      requiredExperienceYears: extracted.requiredExperienceYears,
-      requiredStartDate: extracted.startDate ? new Date(`${extracted.startDate}T00:00:00Z`) : null,
-      requiredEndDate: extracted.endDate ? new Date(`${extracted.endDate}T00:00:00Z`) : null,
-      requiredDurationWeeks: extracted.durationWeeks ?? (extracted.durationMonths ? Math.round(extracted.durationMonths * 4.345) : null),
-      contractType: extracted.contractType,
-      matchScore: match.total,
-      matchBreakdown: JSON.stringify(match.factors),
-      strengths: JSON.stringify(match.strengths),
-      watchouts: JSON.stringify(match.watchouts),
-      missingSkills: JSON.stringify(match.missingSkills),
-      recommendation: match.recommendation,
-      eligibilityStatus: eligibility.status,
-      eligibilityNotes: JSON.stringify(eligibility.notes),
-      analyzedAt: new Date(),
-    },
+    create: { applicationId, sourceUrl, ...buildJobAnalysisData(extracted, match, eligibility, profile.updatedAt) },
+    update: buildJobAnalysisData(extracted, match, eligibility, profile.updatedAt),
   });
 
   revalidatePath("/", "layout");
   revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath("/opportunities");
   return { match, eligibility };
+}
+
+function buildJobAnalysisData(
+  extracted: ExtractedJobData,
+  match: MatchResult,
+  eligibility: EligibilityResult,
+  profileUpdatedAt: Date,
+) {
+  return {
+    extractionMethod: extracted.extractionMethod,
+    rawExtractedText: extracted.rawText.slice(0, 8000),
+    responsibilities: extracted.responsibilities,
+    qualifications: extracted.qualifications,
+    requiredSkills: JSON.stringify(extracted.requiredSkills),
+    requiredLanguages: JSON.stringify(extracted.requiredLanguages),
+    requiredEducationLevel: extracted.requiredEducationLevel,
+    requiredExperienceYears: extracted.requiredExperienceYears,
+    requiredStartDate: extracted.startDate ? new Date(`${extracted.startDate}T00:00:00Z`) : null,
+    requiredEndDate: extracted.endDate ? new Date(`${extracted.endDate}T00:00:00Z`) : null,
+    requiredDurationWeeks: extracted.durationWeeks ?? (extracted.durationMonths ? Math.round(extracted.durationMonths * 4.345) : null),
+    contractType: extracted.contractType,
+    matchScore: match.total,
+    matchBreakdown: JSON.stringify(match.factors),
+    strengths: JSON.stringify(match.strengths),
+    watchouts: JSON.stringify(match.watchouts),
+    missingSkills: JSON.stringify(match.missingSkills),
+    recommendation: match.recommendation,
+    eligibilityStatus: eligibility.status,
+    eligibilityNotes: JSON.stringify(eligibility.notes),
+    analyzedAt: new Date(),
+    profileUpdatedAtSnapshot: profileUpdatedAt,
+  };
 }

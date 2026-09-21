@@ -82,6 +82,38 @@ describe("core opportunity workflows", () => {
     const moved = await prisma.application.findUniqueOrThrow({ where: { id: application.id } });
     expect(moved.statusId).toBe(stageB.id);
   });
+
+  it("analyzes an opportunity that has no job analysis yet, like a lead converted from Pistes", async () => {
+    const { prisma } = await import("@/lib/prisma");
+    const { ensureApplicationPipelineStages } = await import("@/lib/data/pipeline-stages");
+    const { reanalyzeOpportunity } = await import("@/lib/actions/job-import");
+
+    const stages = await ensureApplicationPipelineStages();
+    const saved = stages.find((stage) => stage.key === "SAVED");
+    if (!saved) throw new Error("SAVED stage missing");
+
+    const company = await prisma.company.create({ data: { name: "Reanalyze Co" } });
+    const application = await prisma.application.create({
+      data: {
+        title: "Data analyst intern",
+        companyId: company.id,
+        statusId: saved.id,
+        applicationType: "ADVERTISED",
+        // A converted lead has no jobAnalysis: notes are the only source when
+        // the posting URL can't be scraped, which is what this exercises.
+        notes:
+          "Data analyst intern, 6 mois, Paris. Missions : construire des dashboards, des pipelines ETL et des requêtes SQL. Compétences : Python, SQL, Git. Anglais courant.",
+      },
+    });
+
+    expect(await prisma.jobAnalysis.findUnique({ where: { applicationId: application.id } })).toBeNull();
+
+    await reanalyzeOpportunity(application.id);
+
+    const analysis = await prisma.jobAnalysis.findUniqueOrThrow({ where: { applicationId: application.id } });
+    expect(typeof analysis.matchScore).toBe("number");
+    expect(analysis.profileUpdatedAtSnapshot).not.toBeNull();
+  });
 });
 
 describe("backup and CSV import/export", () => {

@@ -42,21 +42,31 @@ export function OpportunityFit({
           <CardTitle className="text-base">Compatibilité</CardTitle>
           <CardDescription>Match Score & éligibilité, calculés à partir de ton profil.</CardDescription>
         </div>
-        {jobAnalysis && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
+        <Button
+          size="sm"
+          variant={jobAnalysis ? "outline" : "default"}
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              try {
                 await reanalyzeOpportunity(application.id);
-                toast.success("Annonce réanalysée et compatibilité recalculée");
-              })
-            }
-          >
-            <RefreshCw className="size-3.5" /> Relancer l&apos;analyse
-          </Button>
-        )}
+                toast.success(jobAnalysis ? "Annonce réanalysée et compatibilité recalculée" : "Annonce analysée : match score calculé");
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Analyse impossible.");
+              }
+            })
+          }
+        >
+          {jobAnalysis ? (
+            <>
+              <RefreshCw className="size-3.5" /> Relancer l&apos;analyse
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-3.5" /> Analyser l&apos;offre
+            </>
+          )}
+        </Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {profileStale && (
@@ -70,7 +80,7 @@ export function OpportunityFit({
           <EmptyState
             icon={Sparkles}
             title="Pas encore d'analyse"
-            description="Cette opportunité n'a pas de match score calculé."
+            description="Lance l'analyse pour calculer le match score, l'éligibilité et alimenter la lettre de motivation."
           />
         ) : (
           <MatchScoreCard
