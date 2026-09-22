@@ -40,7 +40,10 @@ db: $(STAMP)
 migrate: $(STAMP)
 	npx prisma migrate dev
 
-seed: $(STAMP)
+# Seed demo data. Depends on `db` so it also works on a fresh clone (migrations
+# applied first). It is not run automatically by `make dev` on purpose: the
+# seed is not idempotent, so running it twice would duplicate demo rows.
+seed: db
 	npm run db:seed
 
 reset: $(STAMP)
