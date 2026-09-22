@@ -329,6 +329,20 @@ supprimer une fois que vous commencez à suivre votre propre recherche :
 | `npm run db:seed` | Charge les données de démonstration |
 | `npm run db:reset` | Réinitialise la base (⚠️ destructif) et reseed |
 
+### Makefile
+
+Un `Makefile` à la racine regroupe l'essentiel. `make dev` installe les
+dépendances si besoin, applique les migrations, puis lance le serveur :
+
+```bash
+make dev      # tout lancer (install + migrations + serveur de développement)
+make help     # liste des cibles
+```
+
+Cibles disponibles : `install`, `db` (migrations non-interactives), `migrate`,
+`seed`, `reset`, `build`, `start`, `test`, `test-watch`, `lint`, `studio`,
+`clean`.
+
 ## Structure du projet
 
 ```
