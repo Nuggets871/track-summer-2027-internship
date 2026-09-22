@@ -28,6 +28,7 @@ export async function getApplicationDetail(id: string) {
       city: true,
       status: true,
       coverLetter: true,
+      generatedCv: true,
       jobAnalysis: true,
       documents: true,
     },

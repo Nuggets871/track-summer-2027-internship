@@ -18,6 +18,7 @@ const EXPORTABLE_MODELS = [
   "jobAnalysis",
   "document",
   "coverLetter",
+  "generatedCv",
   "setting",
   "profile",
 ] as const;

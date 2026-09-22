@@ -8,6 +8,7 @@ import { parseJsonLoose } from "@/lib/ai/json";
 import { sanitizeJobExtraction } from "@/lib/ai/prompts/job-extraction";
 import { sanitizeParsedCv } from "@/lib/ai/prompts/cv-parsing";
 import { sanitizeCvOptimization } from "@/lib/ai/prompts/cv-optimization";
+import { sanitizeGeneratedCv } from "@/lib/ai/prompts/cv-generation";
 
 describe("parseJsonLoose", () => {
   it("parses a fenced JSON block", () => {
@@ -83,5 +84,34 @@ describe("sanitizeCvOptimization", () => {
     });
     expect(result.bulletRewrites).toEqual([{ original: "built a thing", improved: "Built a thing" }]);
     expect(result.highlights).toEqual(["keep"]);
+  });
+});
+
+describe("sanitizeGeneratedCv", () => {
+  it("coerces a valid section/entry payload and drops empty sections", () => {
+    const result = sanitizeGeneratedCv({
+      headline: "  Élève ingénieur  ",
+      summary: "",
+      sections: [
+        { title: "Expérience", entries: [{ heading: "Stage - Acme", meta: " 2025 ", bullets: [" Fait X ", ""], tags: ["Python"] }] },
+        { title: "", entries: [] },
+      ],
+    });
+    expect(result.headline).toBe("Élève ingénieur");
+    expect(result.summary).toBeNull();
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0].title).toBe("Expérience");
+    expect(result.sections[0].entries[0]).toEqual({
+      id: "s0e0",
+      heading: "Stage - Acme",
+      meta: "2025",
+      bullets: ["Fait X"],
+      tags: ["Python"],
+    });
+  });
+
+  it("returns an empty CV for a malformed payload", () => {
+    expect(sanitizeGeneratedCv({ sections: "nope" })).toEqual({ headline: null, summary: null, sections: [] });
+    expect(sanitizeGeneratedCv({})).toEqual({ headline: null, summary: null, sections: [] });
   });
 });

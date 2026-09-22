@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import type { Application, Company, CoverLetter } from "@prisma/client";
+import type { Application, Company, CoverLetter, GeneratedCv } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +14,7 @@ import { generateSpontaneousMessage, saveSpontaneousMessage } from "@/lib/action
 import type { AppProfile } from "@/lib/data/profile";
 import { cn } from "@/lib/utils";
 
-type ApplicationDetail = Application & { company: Company; coverLetter: CoverLetter | null };
+type ApplicationDetail = Application & { company: Company; coverLetter: CoverLetter | null; generatedCv: GeneratedCv | null };
 
 function toDateInput(d: Date | null) {
   return d ? new Date(d).toISOString().slice(0, 10) : "";
@@ -178,6 +178,25 @@ export function OpportunityApplication({ application, profile }: { application: 
           <Button onClick={saveTracking} disabled={pending}>
             Enregistrer
           </Button>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h4 className="text-sm font-medium text-foreground">CV adapté</h4>
+              <p className="text-xs text-muted-foreground">
+                {application.generatedCv
+                  ? `Version ${application.generatedCv.version} enregistrée — ajuste et télécharge-le (Word / PDF) dans son espace dédié.`
+                  : "Génère un CV taillé pour cette offre à partir de ton profil et de ton CV actuel."}
+              </p>
+            </div>
+            <Button asChild>
+              <Link href={`/opportunities/${application.id}/cv`}>
+                <FileText className="size-3.5" /> {application.generatedCv ? "Ouvrir le CV" : "Préparer mon CV"}
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 border-t border-border pt-4">

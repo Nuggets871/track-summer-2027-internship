@@ -5,12 +5,15 @@ import { prisma } from "@/lib/prisma";
 import { getProfile } from "@/lib/data/profile";
 import { generateCoverLetter, type CoverLetterTone, type CoverLetterLanguage } from "@/lib/ai/prompts/cover-letter";
 import { optimizeCvForJob, type CvOptimizationResult } from "@/lib/ai/prompts/cv-optimization";
+import { generateTailoredCv, refineTailoredCv, type CvLanguage } from "@/lib/ai/prompts/cv-generation";
 import { generateInterviewPrep } from "@/lib/ai/prompts/interview-prep";
 import { aiChat, isAiConfigured } from "@/lib/ai/provider";
 import { safeJsonParse } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/ai/types";
 import { skillKey } from "@/lib/skill-normalization";
 import { buildProfileContext } from "@/lib/ai/profile-context";
+import { buildCvFromProfile } from "@/lib/cv-from-profile";
+import { normalizeCvContent, parseCvContent, type CvContent } from "@/lib/cv-content";
 import { logActivity } from "@/lib/data/activity";
 
 async function buildProfileSummary() {
@@ -21,7 +24,7 @@ async function buildProfileSummary() {
 async function getApplicationContext(applicationId: string) {
   return prisma.application.findUniqueOrThrow({
     where: { id: applicationId },
-    include: { company: true, jobAnalysis: true, coverLetter: true },
+    include: { company: true, jobAnalysis: true, coverLetter: true, generatedCv: true },
   });
 }
 
@@ -227,6 +230,123 @@ Je serais ravi(e) d'échanger avec vous pour vous présenter plus en détail ma 
 
 Cordialement,
 ${name}`;
+}
+
+// --- Generated CV (tailored to one opportunity) -------------------------
+
+async function cvInput(
+  application: Awaited<ReturnType<typeof getApplicationContext>>,
+  profile: Awaited<ReturnType<typeof getProfile>>,
+  language: CvLanguage,
+) {
+  const matchedSkills = matchedSkillsFor(application.jobAnalysis?.requiredSkills, profile.skills);
+  return {
+    matchedSkills,
+    input: {
+      companyName: application.company.name,
+      title: application.title,
+      jobDescription: application.jobAnalysis?.rawExtractedText?.slice(0, 6_000) ?? application.companyResearch ?? null,
+      matchedSkills,
+      profileSummary: buildProfileContext(profile, { includeContact: false, includeCv: false }),
+      cvRawText: profile.cvRawText,
+      language,
+    },
+  };
+}
+
+export async function generateCvForApplication(applicationId: string, language: CvLanguage) {
+  const application = await getApplicationContext(applicationId);
+  const profile = await getProfile();
+  const { matchedSkills, input } = await cvInput(application, profile, language);
+
+  const generated = await generateTailoredCv(input);
+  const usedAi = generated !== null;
+  // Without AI (or if the call fails) the profile still yields a real CV.
+  const finalContent = generated ?? buildCvFromProfile(profile, language);
+
+  const cv = await prisma.generatedCv.upsert({
+    where: { applicationId },
+    create: {
+      applicationId,
+      companyId: application.companyId,
+      status: "DRAFT",
+      version: "v1",
+      language,
+      content: JSON.stringify(finalContent),
+      personalizedElements: matchedSkills.join(", "),
+    },
+    update: {
+      language,
+      content: JSON.stringify(finalContent),
+      personalizedElements: matchedSkills.join(", "),
+      revisionHistory: application.generatedCv?.content ? JSON.stringify([application.generatedCv.content]) : undefined,
+    },
+  });
+
+  await logActivity(applicationId, "CV", usedAi ? "CV généré par l'IA" : "CV généré depuis le profil (IA non configurée)");
+  revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath(`/opportunities/${applicationId}/cv`);
+  return { cv, usedAi };
+}
+
+export async function refineCv(applicationId: string, instruction: string) {
+  const text = instruction.trim();
+  if (!text) throw new Error("Écris une instruction.");
+  const existing = await prisma.generatedCv.findUnique({ where: { applicationId } });
+  const current = parseCvContent(existing?.content);
+  if (!existing || !current) throw new Error("Génère d'abord une première version du CV.");
+
+  const application = await getApplicationContext(applicationId);
+  const profile = await getProfile();
+  const { input } = await cvInput(application, profile, (existing.language as CvLanguage) ?? "FR");
+
+  const content = await refineTailoredCv({ ...input, previousContent: current, instruction: text });
+  if (!content) throw new Error("L'IA n'est pas disponible pour affiner ce CV. Configurez une clé dans Paramètres > AI.");
+
+  const revisions = safeJsonParse<string[]>(existing.revisionHistory, []);
+  if (existing.content) revisions.push(existing.content);
+  const history = safeJsonParse<ChatMessage[]>(existing.chatHistory, []);
+  history.push({ role: "user", content: text }, { role: "assistant", content: JSON.stringify(content) });
+  const currentVersion = Number.parseInt((existing.version ?? "v1").replace(/^v/i, ""), 10);
+  const nextVersion = `v${Number.isFinite(currentVersion) ? currentVersion + 1 : revisions.length + 1}`;
+
+  const cv = await prisma.generatedCv.update({
+    where: { applicationId },
+    data: {
+      content: JSON.stringify(content),
+      version: nextVersion,
+      revisionHistory: JSON.stringify(revisions.slice(-20)),
+      chatHistory: JSON.stringify(history.slice(-20)),
+    },
+  });
+  revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath(`/opportunities/${applicationId}/cv`);
+  return cv;
+}
+
+export async function restorePreviousCv(applicationId: string) {
+  const existing = await prisma.generatedCv.findUniqueOrThrow({ where: { applicationId } });
+  const revisions = safeJsonParse<string[]>(existing.revisionHistory, []);
+  const previous = revisions.pop();
+  if (!previous) throw new Error("Aucune version précédente disponible.");
+  const cv = await prisma.generatedCv.update({
+    where: { applicationId },
+    data: { content: previous, version: `v${Math.max(1, revisions.length + 1)}`, revisionHistory: JSON.stringify(revisions) },
+  });
+  revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath(`/opportunities/${applicationId}/cv`);
+  return cv;
+}
+
+export async function saveCvContent(applicationId: string, content: CvContent) {
+  const normalized = normalizeCvContent(content);
+  await prisma.generatedCv.upsert({
+    where: { applicationId },
+    create: { applicationId, content: JSON.stringify(normalized), status: "DRAFT", version: "v1" },
+    update: { content: JSON.stringify(normalized) },
+  });
+  revalidatePath(`/opportunities/${applicationId}`);
+  revalidatePath(`/opportunities/${applicationId}/cv`);
 }
 
 // --- CV optimization ----------------------------------------------------

@@ -60,6 +60,7 @@ model Company {
   applications Application[]
   documents    Document[]
   coverLetters CoverLetter[]
+  generatedCvs GeneratedCv[]
 
   @@index([name])
 }
@@ -139,6 +140,7 @@ model Application {
 
   documents   Document[]
   coverLetter CoverLetter?
+  generatedCv GeneratedCv?
   jobAnalysis JobAnalysis?
   activities  Activity[]
 
@@ -301,6 +303,29 @@ model CoverLetter {
   tone                 String? // PROFESSIONAL | NATURAL | CONCISE | PERSONALIZED
   language             String? // FR | EN
   personalizedElements String?
+  documentId           String?
+  notes                String?
+  chatHistory          String? // JSON array of user/assistant refinement messages
+  revisionHistory      String? // JSON array of previous generated versions
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+}
+
+// A CV tailored to one opportunity, generated from the candidate profile and
+// the job posting, then editable and exportable (Word / PDF). Unlike the cover
+// letter's free text, the content is structured JSON (see src/lib/cv-content.ts)
+// so the export can lay out real sections and bullet points instead of a blob.
+model GeneratedCv {
+  id                   String      @id @default(cuid())
+  applicationId        String      @unique
+  application          Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  companyId            String?
+  company              Company?    @relation(fields: [companyId], references: [id])
+  status               String      @default("DRAFT") // DRAFT | TO_REVIEW | READY | SENT
+  version              String      @default("v1")
+  language             String? // FR | EN
+  content              String? // JSON CvContent — structured sections/entries
+  personalizedElements String? // skills matched against the offer, kept for transparency
   documentId           String?
   notes                String?
   chatHistory          String? // JSON array of user/assistant refinement messages

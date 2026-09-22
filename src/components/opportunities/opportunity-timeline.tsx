@@ -12,6 +12,7 @@ const TYPE_LABELS: Record<string, string> = {
   DOCUMENT: "Document",
   INTERVIEW_PREP: "Entretien",
   COVER_LETTER: "Lettre",
+  CV: "CV",
 };
 
 function formatDateTime(date: Date) {

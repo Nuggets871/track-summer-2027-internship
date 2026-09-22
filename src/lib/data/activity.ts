@@ -8,7 +8,8 @@ export type ActivityType =
   | "NOTE"
   | "DOCUMENT"
   | "INTERVIEW_PREP"
-  | "COVER_LETTER";
+  | "COVER_LETTER"
+  | "CV";
 
 /**
  * Appends one entry to an application's timeline. Best-effort: a logging

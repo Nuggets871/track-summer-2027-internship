@@ -438,6 +438,50 @@ Langues : Français (natif), Anglais (courant), Espagnol (intermédiaire)`;
     },
   });
 
+  await prisma.generatedCv.create({
+    data: {
+      applicationId: applications["Summer Analyst — M&A"],
+      companyId: companies["Meridian Bank International"],
+      status: "READY",
+      version: "v1",
+      language: "FR",
+      personalizedElements: "Excel, Financial Modeling, Python",
+      content: JSON.stringify({
+        headline: "Élève en Master Finance - objectif Summer Analyst M&A",
+        summary:
+          "Élève en Master Finance, avec une première expérience en corporate finance. Solide base en modélisation financière et en analyse d'opérations de M&A.",
+        sections: [
+          {
+            title: "Expérience professionnelle",
+            entries: [
+              {
+                heading: "Stagiaire Corporate Finance - Atlas Partners",
+                meta: "Juin - Août 2025 · Paris",
+                bullets: [
+                  "Analysé des sociétés cibles et préparé des mémos d'investissement pour des opérations de M&A.",
+                  "Construit des modèles de valorisation (DCF, comparables) sous Excel pour appuyer les recommandations.",
+                ],
+                tags: ["Excel", "Financial Modeling", "Valorisation"],
+              },
+            ],
+          },
+          {
+            title: "Formation",
+            entries: [{ heading: "Master Finance - CPE Lyon", meta: "2025 - 2027 (en cours)", bullets: [], tags: [] }],
+          },
+          {
+            title: "Compétences",
+            entries: [{ heading: "", meta: null, bullets: [], tags: ["Excel", "PowerPoint", "Financial Modeling", "Valorisation", "Python"] }],
+          },
+          {
+            title: "Langues",
+            entries: [{ heading: "", meta: null, bullets: ["Français - Natif", "Anglais - Courant", "Espagnol - Intermédiaire"], tags: [] }],
+          },
+        ],
+      }),
+    },
+  });
+
   console.log("✅ Seed terminé.");
 }
 

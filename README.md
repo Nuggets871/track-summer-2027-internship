@@ -109,6 +109,26 @@ espace dédié à cette candidature — la lettre reste liée à l'offre :
   (nom, coordonnées, date, destinataire, objet) ;
 - **Restaurer la version précédente** à tout moment.
 
+### 📄 Studio de CV
+Depuis la fiche d'une opportunité, le bouton **Préparer mon CV** ouvre un
+espace dédié qui produit un CV **taillé pour cette offre** à partir de ton
+profil, de ton CV importé et de l'annonce — même logique que le studio de
+lettre :
+
+- **Générer** un premier CV structuré (rubriques, expériences, puces,
+  compétences) avec l'IA, ou **depuis ton profil seul** si aucune clé n'est
+  configurée : tu obtiens toujours un document exploitable ;
+- **Itérer** : demandes libres (« tiens sur une page », « mets en avant mon
+  stage chez X ») ou actions rapides (réordonner par pertinence, verbes
+  d'action, format ATS) ;
+- **Modifier chaque rubrique à la main** — titre, expériences, puces,
+  technologies — puis enregistrer ;
+- **Télécharger en Word (.docx) et en PDF**, mis en page automatiquement
+  (en-tête repris du profil, une page visée) ;
+- **Contrôle qualité** transparent : tirets cadratins, formules creuses,
+  puces trop longues, risque de dépasser une page ;
+- **Restaurer la version précédente** à tout moment.
+
 ### 🗓️ Calendrier
 Une vue mois par mois qui récapitule **deadlines, relances et candidatures
 envoyées**, avec le compte par jour et le détail au clic. Le bouton
@@ -270,7 +290,8 @@ npm start
 Le schéma relationnel complet vit dans [`prisma/schema.prisma`](prisma/schema.prisma).
 Entités actives : `Country`, `City`, `Company`, `Application`, `PipelineStage`
 (les 7 statuts du pipeline), `JobAnalysis` (Match Score, éligibilité,
-extraction — une par opportunité), `CoverLetter`, `Profile` (singleton),
+extraction — une par opportunité), `CoverLetter`, `GeneratedCv` (CV adapté à
+une opportunité, stocké en JSON structuré), `Profile` (singleton),
 `Setting` (singleton, y compris la clé IA), `Document` (fichiers uploadés,
 CV compris).
 
@@ -320,15 +341,17 @@ src/
     page.tsx               # Accueil
     opportunities/          # Liste + fiche détail
     opportunities/[id]/letter/ # Studio de lettre de motivation
+    opportunities/[id]/cv/     # Studio de CV adapté à l'opportunité
     profile/                # Profil candidat + import CV + lettre de référence
     settings/               # IA / Apparence / Confidentialité & données
     api/documents/[id]/     # Téléchargement des fichiers uploadés (CV inclus)
     api/cover-letter/[id]/  # Export Word/PDF d'une lettre
+    api/cv/[id]/            # Export Word/PDF d'un CV adapté
   components/
     ui/                  # Primitives de design system (bouton, dialog...)
     layout/              # Sidebar, topbar, command palette, quick-add
     job-import/            # Workflow "coller un lien" (widget, flow, score card)
-    opportunities/          # Tableau + sections de la fiche + studio de lettre
+    opportunities/          # Tableau + sections de la fiche + studios lettre & CV
     profile/                # Formulaire profil, import CV, lettre de référence
     settings/               # Formulaires de chaque onglet Paramètres
   lib/
@@ -340,6 +363,10 @@ src/
       providers/deepseek.ts   # Implémentation DeepSeek
       prompts/                # Un module par tâche IA (extraction, lettre, CV, entretien)
     cv-file-text.ts        # Extraction de texte PDF/DOCX/texte brut
+    cv-content.ts            # Modèle structuré d'un CV (rubriques, entrées, puces)
+    cv-from-profile.ts       # CV de repli construit depuis le profil (sans IA)
+    cv-export.ts             # Rendu d'un CV en .docx et .pdf
+    cv-style.ts              # Contrôle qualité du CV (déterministe, non-IA)
     cover-letter-export.ts   # Rendu d'une lettre en .docx et .pdf
     job-extraction.ts        # Parsing HTML/texte → données structurées (pur, testé)
     job-matching.ts           # Match Score + Eligibility (pur, testé)
@@ -445,6 +472,12 @@ La suite couvre :
   modèle.
 - **Contexte profil** (`tests/profile-context.test.ts`) : construction du
   contexte candidat transmis aux prompts.
+- **Contenu de CV** (`tests/cv-content.test.ts`) : normalisation du CV
+  structuré (rubriques/entrées/puces), parsing défensif du JSON stocké, et CV
+  de repli construit depuis le profil sans IA.
+- **Sanitizers IA** (`tests/ai-prompt-sanitizers.test.ts`) : parsing JSON
+  tolérant et coercition des sorties IA (extraction d'offre, CV importé,
+  optimisation CV, CV généré).
 - **Match Score & Eligibility** (`tests/job-matching.test.ts`) : chaque
   dimension du score, respect du barème par défaut, détection
   d'une fenêtre de date de diplôme incompatible.
