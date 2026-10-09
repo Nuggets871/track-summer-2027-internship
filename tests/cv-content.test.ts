@@ -1,7 +1,7 @@
 // Pure tests for the CV content model and the no-AI profile fallback. No
 // prisma/network involved — the fallback only reads an AppProfile-shaped object.
 import { describe, expect, it } from "vitest";
-import { countCvWords, isCvEmpty, normalizeCvContent, parseCvContent } from "@/lib/cv-content";
+import { countCvWords, CV_ONE_PAGE_WORDS, fitCvToOnePage, isCvEmpty, normalizeCvContent, parseCvContent } from "@/lib/cv-content";
 import { buildCvFromProfile } from "@/lib/cv-from-profile";
 import type { AppProfile } from "@/lib/data/profile";
 
@@ -37,6 +37,43 @@ describe("parseCvContent", () => {
   it("returns null for absent or broken JSON", () => {
     expect(parseCvContent(null)).toBeNull();
     expect(parseCvContent("{not json")).toBeNull();
+  });
+});
+
+describe("fitCvToOnePage", () => {
+  const bigCv = normalizeCvContent({
+    headline: "Élève-ingénieur",
+    summary: "Phrase une. Phrase deux. Phrase trois. Phrase quatre. Phrase cinq.",
+    sections: [
+      {
+        title: "Expérience professionnelle",
+        entries: Array.from({ length: 4 }, (_, i) => ({
+          heading: `Stage ${i} - Entreprise`,
+          meta: "2025 · Paris",
+          bullets: Array.from({ length: 5 }, () => "Développé une fonctionnalité complète en collaboration avec l'équipe produit et livré dans les délais."),
+          tags: ["TypeScript", "React", "Node", "PostgreSQL"],
+        })),
+      },
+      { title: "Compétences", entries: [{ heading: "", bullets: [], tags: ["Python", "SQL", "Docker", "Git", "AWS", "CI/CD"] }] },
+    ],
+  });
+
+  it("trims an oversized CV down to the one-page word budget", () => {
+    const fitted = fitCvToOnePage(bigCv);
+    expect(countCvWords(fitted)).toBeLessThanOrEqual(CV_ONE_PAGE_WORDS);
+    expect(countCvWords(fitted)).toBeLessThan(countCvWords(bigCv));
+  });
+
+  it("caps the summary length and never mutates the input", () => {
+    const before = JSON.stringify(bigCv);
+    const fitted = fitCvToOnePage(bigCv);
+    expect(JSON.stringify(bigCv)).toBe(before);
+    expect(fitted.summary?.split(". ").length).toBeLessThanOrEqual(3);
+  });
+
+  it("leaves a CV that already fits untouched", () => {
+    const small = normalizeCvContent({ headline: "Dev", summary: "Bonjour.", sections: [{ title: "Formation", entries: [{ heading: "Master", bullets: ["Major de promo."] }] }] });
+    expect(fitCvToOnePage(small)).toEqual(small);
   });
 });
 

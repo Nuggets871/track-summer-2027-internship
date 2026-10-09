@@ -14,6 +14,7 @@ import { skillKey } from "@/lib/skill-normalization";
 import { buildProfileContext } from "@/lib/ai/profile-context";
 import { buildCvFromProfile } from "@/lib/cv-from-profile";
 import { normalizeCvContent, parseCvContent, type CvContent } from "@/lib/cv-content";
+import { selectRelevantCvContent } from "@/lib/cv-selection";
 import { logActivity } from "@/lib/data/activity";
 
 async function buildProfileSummary() {
@@ -261,8 +262,11 @@ export async function generateCvForApplication(applicationId: string, language: 
 
   const generated = await generateTailoredCv(input);
   const usedAi = generated !== null;
-  // Without AI (or if the call fails) the profile still yields a real CV.
-  const finalContent = generated ?? buildCvFromProfile(profile, language);
+  // Without AI (or if the call fails) the profile still yields a real CV. Either
+  // way the content is curated before storage: only the entries and skills that
+  // matter for this offer are kept, so the CV shows less and holds on one page.
+  const requiredSkills = safeJsonParse<string[]>(application.jobAnalysis?.requiredSkills, []);
+  const finalContent = selectRelevantCvContent(generated ?? buildCvFromProfile(profile, language), { requiredSkills });
 
   const cv = await prisma.generatedCv.upsert({
     where: { applicationId },

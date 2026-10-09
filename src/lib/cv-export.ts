@@ -8,7 +8,7 @@ import { BorderStyle, Document, Packer, Paragraph, TextRun } from "docx";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { prisma } from "@/lib/prisma";
 import { getProfile } from "@/lib/data/profile";
-import { isCvEmpty, parseCvContent, type CvContent } from "@/lib/cv-content";
+import { countCvWords, fitCvToOnePage, isCvEmpty, parseCvContent, type CvContent } from "@/lib/cv-content";
 
 export type CvExportContext = {
   candidateName: string;
@@ -121,7 +121,15 @@ export async function buildCvDocx(ctx: CvExportContext): Promise<Buffer> {
     styles: { default: { document: { run: { font: "Calibri", size: 20 } } } },
     sections: [
       {
-        properties: { page: { margin: { top: 1020, bottom: 1020, left: 1020, right: 1020 } } },
+        // A4 (11906 x 16838 twips) so Word paginates like the PDF, with the
+        // same 1.8 cm margins. Word's default page is Letter, which is shorter
+        // and pushed slightly long CVs onto a second page.
+        properties: {
+          page: {
+            size: { width: 11906, height: 16838 },
+            margin: { top: 1020, bottom: 1020, left: 1020, right: 1020 },
+          },
+        },
         children,
       },
     ],
@@ -155,7 +163,50 @@ function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): 
   return lines.length ? lines : [""];
 }
 
+// The PDF must never exceed one page. Shrinking the layout is preferred because
+// it keeps every piece of content; trimming is only a last resort for a CV so
+// long that even the smallest scale spills over. 1 = design size.
+const PDF_FIT_SCALES = [1, 0.96, 0.92, 0.88, 0.84, 0.8, 0.76];
+
+/**
+ * Word budgets tried, in descending order, when shrinking is not enough. They
+ * start just under the CV's real length and step down, so the export only ever
+ * removes as much as it must to fit one page.
+ */
+function trimBudgets(words: number): number[] {
+  const budgets: number[] = [];
+  for (let budget = Math.floor(words * 0.94); budget >= 160; budget = Math.floor(budget * 0.85)) {
+    budgets.push(budget);
+  }
+  return budgets;
+}
+
+/** Renders at the largest scale that fits on one page, or null if none does. */
+async function renderOnePage(ctx: CvExportContext): Promise<Uint8Array | null> {
+  for (const scale of PDF_FIT_SCALES) {
+    const rendered = await renderCvPdf(ctx, scale);
+    if (rendered.pages <= 1) return rendered.bytes;
+  }
+  return null;
+}
+
 export async function buildCvPdf(ctx: CvExportContext): Promise<Uint8Array> {
+  // First try to keep every piece of content by shrinking the layout only.
+  const shrunk = await renderOnePage(ctx);
+  if (shrunk) return shrunk;
+  // Too long even at the smallest scale: drop the least relevant tail until it
+  // fits. Only the exported PDF is trimmed — the stored CV keeps its content.
+  let last: Uint8Array | null = null;
+  for (const budget of trimBudgets(countCvWords(ctx.content))) {
+    const fitted = { ...ctx, content: fitCvToOnePage(ctx.content, budget) };
+    const bytes = await renderOnePage(fitted);
+    if (bytes) return bytes;
+    last = (await renderCvPdf(fitted, PDF_FIT_SCALES[PDF_FIT_SCALES.length - 1])).bytes;
+  }
+  return last ?? (await renderCvPdf(ctx, PDF_FIT_SCALES[PDF_FIT_SCALES.length - 1])).bytes;
+}
+
+async function renderCvPdf(ctx: CvExportContext, scale: number): Promise<{ bytes: Uint8Array; pages: number }> {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -184,25 +235,27 @@ export async function buildCvPdf(ctx: CvExportContext): Promise<Uint8Array> {
   const write = (text: string, font: PDFFont, size: number, opts: { x?: number; width?: number; color?: ReturnType<typeof rgb>; after?: number } = {}) => {
     const x = opts.x ?? margin;
     const width = opts.width ?? maxWidth - (x - margin);
-    const lines = wrapText(text, font, size, width);
+    const fontSize = size * scale;
+    const lines = wrapText(text, font, fontSize, width);
     for (const line of lines) {
-      ensure(size + 4);
-      page.drawText(line, { x, y: y - size, size, font, color: opts.color ?? ink });
-      y -= size + 4;
+      ensure(fontSize + 4 * scale);
+      page.drawText(line, { x, y: y - fontSize, size: fontSize, font, color: opts.color ?? ink });
+      y -= fontSize + 4 * scale;
     }
-    y -= opts.after ?? 0;
+    y -= (opts.after ?? 0) * scale;
   };
 
   const ruleLine = (gap = 8) => {
-    ensure(gap);
+    ensure(gap * scale);
     page.drawLine({ start: { x: margin, y: y - 2 }, end: { x: pageWidth - margin, y: y - 2 }, thickness: 0.75, color: rule });
-    y -= gap;
+    y -= gap * scale;
   };
 
   // Header
-  ensure(30);
-  page.drawText(sanitizeForPdf(ctx.candidateName), { x: margin, y: y - 22, size: 22, font: bold, color: ink });
-  y -= 30;
+  const nameSize = 22 * scale;
+  ensure(30 * scale);
+  page.drawText(sanitizeForPdf(ctx.candidateName), { x: margin, y: y - nameSize, size: nameSize, font: bold, color: ink });
+  y -= 30 * scale;
   if (ctx.headline) write(ctx.headline, regular, 12, { color: muted, after: 4 });
   const contact = [...ctx.contactLines, ...ctx.linkLines];
   if (contact.length > 0) write(contact.join("   ·   "), regular, 9, { color: muted, after: 10 });
@@ -211,43 +264,46 @@ export async function buildCvPdf(ctx: CvExportContext): Promise<Uint8Array> {
   if (ctx.content.summary) write(ctx.content.summary, regular, 10.5, { after: 12 });
 
   for (const section of ctx.content.sections) {
-    ensure(26);
+    ensure(26 * scale);
     write(section.title.toUpperCase(), bold, 11, { color: rgb(0.12, 0.16, 0.2), after: 2 });
     ruleLine(8);
     for (const entry of section.entries) {
       if (entry.heading) {
-        const metaWidth = entry.meta ? italic.widthOfTextAtSize(sanitizeForPdf(entry.meta), 9.5) : 0;
+        const headingSize = 10.5 * scale;
+        const metaSize = 9.5 * scale;
+        const metaWidth = entry.meta ? italic.widthOfTextAtSize(sanitizeForPdf(entry.meta), metaSize) : 0;
         const headingWidth = Math.max(60, maxWidth - metaWidth - 12);
-        const headingLines = wrapText(entry.heading, bold, 10.5, headingWidth);
-        ensure(14);
-        page.drawText(headingLines[0], { x: margin, y: y - 10.5, size: 10.5, font: bold, color: ink });
+        const headingLines = wrapText(entry.heading, bold, headingSize, headingWidth);
+        ensure(14 * scale);
+        page.drawText(headingLines[0], { x: margin, y: y - headingSize, size: headingSize, font: bold, color: ink });
         if (entry.meta) {
-          page.drawText(sanitizeForPdf(entry.meta), { x: pageWidth - margin - metaWidth, y: y - 10.5, size: 9.5, font: italic, color: muted });
+          page.drawText(sanitizeForPdf(entry.meta), { x: pageWidth - margin - metaWidth, y: y - metaSize, size: metaSize, font: italic, color: muted });
         }
-        y -= 15;
+        y -= 15 * scale;
         for (const extra of headingLines.slice(1)) {
-          ensure(14);
-          page.drawText(extra, { x: margin, y: y - 10.5, size: 10.5, font: bold, color: ink });
-          y -= 15;
+          ensure(14 * scale);
+          page.drawText(extra, { x: margin, y: y - headingSize, size: headingSize, font: bold, color: ink });
+          y -= 15 * scale;
         }
       } else if (entry.meta) {
         write(entry.meta, italic, 9.5, { color: muted, after: 4 });
       }
       for (const bullet of entry.bullets) {
-        const bulletLines = wrapText(bullet, regular, 10, maxWidth - 14);
+        const bulletSize = 10 * scale;
+        const bulletLines = wrapText(bullet, regular, bulletSize, maxWidth - 14);
         bulletLines.forEach((line, index) => {
-          ensure(13);
-          if (index === 0) page.drawText("\u2022", { x: margin + 2, y: y - 10, size: 10, font: regular, color: muted });
-          page.drawText(line, { x: margin + 14, y: y - 10, size: 10, font: regular, color: ink });
-          y -= 13;
+          ensure(13 * scale);
+          if (index === 0) page.drawText("\u2022", { x: margin + 2, y: y - bulletSize, size: bulletSize, font: regular, color: muted });
+          page.drawText(line, { x: margin + 14, y: y - bulletSize, size: bulletSize, font: regular, color: ink });
+          y -= 13 * scale;
         });
-        y -= 1;
+        y -= 1 * scale;
       }
       if (entry.tags.length > 0) write(entry.tags.join("   ·   "), italic, 9, { color: muted, after: 5 });
-      y -= 4;
+      y -= 4 * scale;
     }
-    y -= 6;
+    y -= 6 * scale;
   }
 
-  return pdf.save();
+  return { bytes: await pdf.save(), pages: pdf.getPageCount() };
 }

@@ -1,4 +1,4 @@
-import { countCvWords, type CvContent } from "@/lib/cv-content";
+import { countCvWords, CV_ONE_PAGE_WORDS, type CvContent } from "@/lib/cv-content";
 
 export type CvStyleWarning = {
   id: string;
@@ -42,7 +42,7 @@ export function inspectCvStyle(content: CvContent): CvStyleWarning[] {
   if (longBullet) warnings.push({ id: "long-bullet", label: "Puce trop longue", detail: "Au moins une puce dépasse 28 mots. Coupe-la en deux pour rester lisible." });
 
   const words = countCvWords(content);
-  if (words > 650) warnings.push({ id: "length", label: "CV trop long", detail: `${words} mots : risque de dépasser une page. Écarte les puces les moins pertinentes pour cette offre.` });
+  if (words > CV_ONE_PAGE_WORDS) warnings.push({ id: "length", label: "CV trop long", detail: `${words} mots : au-delà de ${CV_ONE_PAGE_WORDS}, le texte est réduit pour tenir sur une page. Écarte les puces les moins pertinentes pour cette offre.` });
 
   if (!content.summary?.trim()) warnings.push({ id: "summary", label: "Accroche absente", detail: "Ajoute un résumé de 2-3 phrases en tête, spécifique à l'offre." });
 

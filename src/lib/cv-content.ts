@@ -56,6 +56,101 @@ export function countCvWords(content: CvContent): number {
   return parts.join(" ").trim().split(/\s+/).filter(Boolean).length;
 }
 
+// A stage CV that must hold on a single A4 page. Calibrated against the PDF
+// layout in src/lib/cv-export.ts: past this budget the renderer spills onto a
+// second page, so generation trims the least relevant tail first.
+export const CV_ONE_PAGE_WORDS = 450;
+
+// Hard ceilings applied when a CV is over budget: an experience or project
+// never needs more than a handful of bullets on a one-page CV.
+const MAX_BULLETS_PER_ENTRY = 3;
+const SUMMARY_MAX_SENTENCES = 3;
+
+function firstSentences(text: string, max: number): string {
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  return sentences.length > max ? sentences.slice(0, max).join(" ") : text.trim();
+}
+
+/**
+ * Removes the least relevant unit of content — one bullet, tag, entry or
+ * section at a time, always from the end. Sections and bullets are ordered by
+ * relevance to the offer (that is what the generation prompt asks for), so the
+ * tail is the safest thing to drop. Returns false when nothing is left to cut.
+ */
+function dropLeastRelevantUnit(content: CvContent): boolean {
+  const sections = content.sections;
+
+  // 1. Trim bullets beyond the per-entry ceiling, last entries first.
+  for (let s = sections.length - 1; s >= 0; s--) {
+    for (let e = sections[s].entries.length - 1; e >= 0; e--) {
+      if (sections[s].entries[e].bullets.length > MAX_BULLETS_PER_ENTRY) {
+        sections[s].entries[e].bullets.pop();
+        return true;
+      }
+    }
+  }
+
+  // 2. Then drop remaining bullets from the end of the document.
+  for (let s = sections.length - 1; s >= 0; s--) {
+    for (let e = sections[s].entries.length - 1; e >= 0; e--) {
+      if (sections[s].entries[e].bullets.length > 0) {
+        sections[s].entries[e].bullets.pop();
+        return true;
+      }
+    }
+  }
+
+  // 3. Then tags (skills), from the end.
+  for (let s = sections.length - 1; s >= 0; s--) {
+    for (let e = sections[s].entries.length - 1; e >= 0; e--) {
+      if (sections[s].entries[e].tags.length > 0) {
+        sections[s].entries[e].tags.pop();
+        return true;
+      }
+    }
+  }
+
+  // 4. Then whole empty entries (heading/meta only).
+  for (let s = sections.length - 1; s >= 0; s--) {
+    for (let e = sections[s].entries.length - 1; e >= 0; e--) {
+      const entry = sections[s].entries[e];
+      if (!entry.heading && !entry.meta) {
+        sections[s].entries.splice(e, 1);
+        return true;
+      }
+    }
+  }
+
+  // 5. Finally, empty sections.
+  for (let s = sections.length - 1; s >= 0; s--) {
+    if (sections[s].entries.length === 0) {
+      sections.splice(s, 1);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Returns a copy of `content` that fits on a single A4 page. The summary is
+ * capped to a few sentences, then content is dropped from the tail until the
+ * word budget is met. It never throws and never mutates the input, so it can
+ * run on any generated CV (AI or profile fallback) before it is stored.
+ */
+export function fitCvToOnePage(content: CvContent, budget: number = CV_ONE_PAGE_WORDS): CvContent {
+  const fitted = JSON.parse(JSON.stringify(content)) as CvContent;
+  if (fitted.summary) fitted.summary = firstSentences(fitted.summary, SUMMARY_MAX_SENTENCES);
+  let guard = 0;
+  while (countCvWords(fitted) > budget && guard++ < 500) {
+    if (!dropLeastRelevantUnit(fitted)) break;
+  }
+  return fitted;
+}
+
 const asString = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value.trim() : null);
 
 function asStringArray(value: unknown): string[] {
