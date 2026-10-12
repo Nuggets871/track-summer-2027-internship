@@ -99,7 +99,7 @@ export function OpportunityDocuments({ applicationId, documents }: { application
             {documents.map((document) => (
               <div key={document.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                 <FileText className="size-4 shrink-0 text-muted-foreground" />
-                <a href={`/api/documents/${document.id}`} className="min-w-0 flex-1 truncate text-sm text-foreground hover:underline">
+                <a href={`/api/documents/${document.id}`} download className="min-w-0 flex-1 truncate text-sm text-foreground hover:underline">
                   {document.name}
                 </a>
                 <span className="shrink-0 text-xs text-muted-foreground">

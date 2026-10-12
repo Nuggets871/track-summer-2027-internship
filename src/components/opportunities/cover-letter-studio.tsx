@@ -32,6 +32,21 @@ const REFINE_ACTIONS = [
   { key: "Mets davantage en avant mon expérience professionnelle.", label: "Focus expérience" },
 ];
 
+/** Reads the attachment name from a Content-Disposition header. */
+function attachmentName(header: string | null): string | null {
+  if (!header) return null;
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utf8) {
+    try {
+      return decodeURIComponent(utf8[1]);
+    } catch {
+      return utf8[1];
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(header);
+  return plain ? plain[1] : null;
+}
+
 export type StudioLetter = {
   content: string | null;
   tone: string | null;
@@ -131,14 +146,23 @@ export function CoverLetterStudio({
       return;
     }
     startTransition(async () => {
-      await saveCoverLetterContent(applicationId, content);
-      const link = document.createElement("a");
-      link.href = `/api/cover-letter/${applicationId}/${format}`;
-      link.rel = "noopener";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success(`Téléchargement ${format.toUpperCase()} lancé`);
+      try {
+        await saveCoverLetterContent(applicationId, content);
+        const response = await fetch(`/api/cover-letter/${applicationId}/${format}`);
+        if (!response.ok) throw new Error("Téléchargement impossible");
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = attachmentName(response.headers.get("Content-Disposition")) ?? `cover-letter.${format}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast.success(`Téléchargement ${format.toUpperCase()} lancé`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Téléchargement impossible");
+      }
     });
   };
 
