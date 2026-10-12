@@ -6,6 +6,7 @@ function makeApp(overrides: Partial<FilterableApplication> & { id: string }): Fi
     title: "Summer Intern",
     statusId: "status-1",
     countryId: "country-1",
+    createdAt: new Date("2026-01-01"),
     updatedAt: new Date("2026-01-01"),
     deadline: null,
     company: { name: "Acme" },
@@ -57,6 +58,28 @@ describe("filterApplications", () => {
   it("combines multiple filters with AND semantics", () => {
     expect(filterApplications(apps, { search: "intern", countryIds: ["ca"] }).map((a) => a.id)).toEqual(["3"]);
   });
+
+  it("filters by the creation date range", () => {
+    const dated = [
+      makeApp({ id: "1", createdAt: new Date("2026-01-10") }),
+      makeApp({ id: "2", createdAt: new Date("2026-02-15") }),
+      makeApp({ id: "3", createdAt: new Date("2026-03-20") }),
+    ];
+    expect(
+      filterApplications(dated, { dateField: "createdAt", dateFrom: "2026-02-01" }).map((a) => a.id),
+    ).toEqual(["2", "3"]);
+    expect(
+      filterApplications(dated, { dateField: "createdAt", dateFrom: "2026-02-01", dateTo: "2026-02-28" }).map((a) => a.id),
+    ).toEqual(["2"]);
+  });
+
+  it("defaults the date range to the last-updated timestamp", () => {
+    const dated = [
+      makeApp({ id: "1", updatedAt: new Date("2026-05-01") }),
+      makeApp({ id: "2", updatedAt: new Date("2026-05-20") }),
+    ];
+    expect(filterApplications(dated, { dateFrom: "2026-05-10" }).map((a) => a.id)).toEqual(["2"]);
+  });
 });
 
 describe("sortApplications", () => {
@@ -80,6 +103,15 @@ describe("sortApplications", () => {
 
   it("sorts by most recently updated first", () => {
     expect(sortApplications(apps, "updatedAt").map((a) => a.id)).toEqual(["2", "3", "1"]);
+  });
+
+  it("sorts by most recently added first", () => {
+    const dated = [
+      makeApp({ id: "1", createdAt: new Date("2026-01-01") }),
+      makeApp({ id: "2", createdAt: new Date("2026-03-01") }),
+      makeApp({ id: "3", createdAt: new Date("2026-02-01") }),
+    ];
+    expect(sortApplications(dated, "createdAt").map((a) => a.id)).toEqual(["2", "3", "1"]);
   });
 
   it("does not mutate the input array", () => {

@@ -7,6 +7,7 @@ export type FilterableApplication = {
   title: string;
   statusId: string;
   countryId: string | null;
+  createdAt: Date;
   updatedAt: Date;
   deadline: Date | null;
   company: { name: string };
@@ -20,6 +21,12 @@ export type ApplicationFilters = {
   minMatch?: number;
   needsAnalysis?: boolean;
   deadlineWithinDays?: number;
+  /** Which timestamp the date range applies to. Defaults to updatedAt. */
+  dateField?: "createdAt" | "updatedAt";
+  /** Inclusive lower bound, "YYYY-MM-DD". */
+  dateFrom?: string;
+  /** Inclusive upper bound, "YYYY-MM-DD". */
+  dateTo?: string;
 };
 
 export function filterApplications<T extends FilterableApplication>(
@@ -49,15 +56,27 @@ export function filterApplications<T extends FilterableApplication>(
     const horizon = now + filters.deadlineWithinDays * 24 * 60 * 60 * 1000;
     rows = rows.filter((a) => a.deadline && a.deadline.getTime() >= now && a.deadline.getTime() <= horizon);
   }
+  if (filters.dateFrom || filters.dateTo) {
+    const field = filters.dateField === "createdAt" ? "createdAt" : "updatedAt";
+    const from = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00`).getTime() : null;
+    const to = filters.dateTo ? new Date(`${filters.dateTo}T23:59:59.999`).getTime() : null;
+    rows = rows.filter((a) => {
+      const time = a[field].getTime();
+      if (from !== null && time < from) return false;
+      if (to !== null && time > to) return false;
+      return true;
+    });
+  }
 
   return rows;
 }
 
-export type ApplicationSortKey = "updatedAt" | "deadline" | "company" | "match";
+export type ApplicationSortKey = "updatedAt" | "createdAt" | "deadline" | "company" | "match";
 
 const NATURAL_DIRECTION: Record<ApplicationSortKey, "asc" | "desc"> = {
   match: "desc",
   updatedAt: "desc",
+  createdAt: "desc",
   deadline: "asc",
   company: "asc",
 };
@@ -77,6 +96,7 @@ export function sortApplications<T extends FilterableApplication>(
     }
     if (sort === "match") return ((a.jobAnalysis?.matchScore ?? -1) - (b.jobAnalysis?.matchScore ?? -1)) * factor;
     if (sort === "company") return a.company.name.localeCompare(b.company.name) * factor;
+    if (sort === "createdAt") return (a.createdAt.getTime() - b.createdAt.getTime()) * factor;
     return (a.updatedAt.getTime() - b.updatedAt.getTime()) * factor;
   });
 }

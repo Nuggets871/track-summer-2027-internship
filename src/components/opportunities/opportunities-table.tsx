@@ -43,6 +43,9 @@ export function OpportunitiesTable({
   const [search, setSearch] = useState("");
   const [statusId, setStatusId] = useState<string>("ALL");
   const [quickFilter, setQuickFilter] = useState<QuickFilterKey>("all");
+  const [dateField, setDateField] = useState<"createdAt" | "updatedAt">("updatedAt");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [sort, setSort] = useState<ApplicationSortKey>("match");
   const [direction, setDirection] = useState<"asc" | "desc">("desc");
   const [, startTransition] = useTransition();
@@ -54,10 +57,13 @@ export function OpportunitiesTable({
       minMatch: quickFilter === "match80" ? 80 : quickFilter === "match70" ? 70 : undefined,
       needsAnalysis: quickFilter === "unscored" ? true : undefined,
       deadlineWithinDays: quickFilter === "deadline" ? 14 : undefined,
+      dateField,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
     });
     rows = sortApplications(rows, sort, direction);
     return rows;
-  }, [opportunities, search, statusId, quickFilter, sort, direction]);
+  }, [opportunities, search, statusId, quickFilter, dateField, dateFrom, dateTo, sort, direction]);
 
   const toggleSort = (key: ApplicationSortKey) => {
     if (key === sort) {
@@ -95,6 +101,25 @@ export function OpportunitiesTable({
             ))}
           </SelectContent>
         </Select>
+        <Select value={dateField} onValueChange={(value) => setDateField(value as "createdAt" | "updatedAt")}>
+          <SelectTrigger className="w-44" aria-label="Type de date">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="updatedAt">Dernière modif</SelectItem>
+            <SelectItem value="createdAt">Date d&apos;ajout</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1.5">
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" aria-label="Depuis le" title="Depuis le" />
+          <span className="text-xs text-muted-foreground">→</span>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" aria-label="Jusqu'au" title="Jusqu'au" />
+          {(dateFrom || dateTo) && (
+            <Button size="sm" variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+              Effacer
+            </Button>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {QUICK_FILTERS.map((f) => (
             <Button
@@ -129,6 +154,12 @@ export function OpportunitiesTable({
                   <span className="inline-flex items-center gap-1">Deadline {renderSortIcon("deadline")}</span>
                 </TableHead>
                 <TableHead>Prochaine action</TableHead>
+                <TableHead onClick={() => toggleSort("createdAt")} className="cursor-pointer select-none">
+                  <span className="inline-flex items-center gap-1">Ajoutée {renderSortIcon("createdAt")}</span>
+                </TableHead>
+                <TableHead onClick={() => toggleSort("updatedAt")} className="cursor-pointer select-none">
+                  <span className="inline-flex items-center gap-1">Modifiée {renderSortIcon("updatedAt")}</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -177,6 +208,8 @@ export function OpportunitiesTable({
                   </TableCell>
                   <TableCell className="text-muted-foreground">{o.deadline ? formatDate(o.deadline) : "—"}</TableCell>
                   <TableCell className="max-w-[180px] truncate text-muted-foreground">{o.nextAction || "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(o.createdAt)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(o.updatedAt)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
