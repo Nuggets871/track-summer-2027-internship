@@ -1,8 +1,11 @@
 # Serveur MCP (intégration ChatGPT)
 
 Stage Copilot expose un serveur [MCP](https://modelcontextprotocol.io) sur
-`/mcp`, ce qui permet à ChatGPT d'ajouter et de lister des offres de stage
-directement dans l'application, sans exposer la base de données.
+`/mcp`, ce qui permet à ChatGPT (ou à un agent de codage) de travailler sur la
+recherche de stage depuis l'extérieur : ajouter et lister des offres, mais aussi
+**lire une opportunité en entier**, la faire **avancer dans le pipeline**,
+consigner une note, et **déclencher la génération du CV et de la lettre** — sans
+jamais exposer la base de données.
 
 L'implémentation s'appuie sur le SDK officiel
 [`@modelcontextprotocol/server`](https://www.npmjs.com/package/@modelcontextprotocol/server)
@@ -16,6 +19,17 @@ tables `Application` / `Company` / `Country` / `City` que le reste de l'app).
 | `addInternships` | Dépose une ou plusieurs **offres publiées** (URL d'annonce obligatoire) dans la section **Offres** de la boîte de réception Pistes (pas directement dans les opportunités : tu les tries ensuite). Déduplique par URL normalisée, puis par entreprise + intitulé, contre les pistes **et** les opportunités. Retourne pour chaque offre `created`, `skipped` (déjà présente) ou `rejected` (champs invalides). |
 | `addSpontaneousTargets` | Dépose une ou plusieurs **candidatures spontanées** dans la section dédiée de Pistes : entreprise + rôle visé obligatoires, avec pays/ville, canal de contact (`EMAIL`, `LINKEDIN`, `WEBSITE`, `CONTACT`, `OTHER`), contact et notes. Déduplique par entreprise + rôle visé, contre les pistes **et** les opportunités. Mêmes statuts `created` / `skipped` / `rejected`. |
 | `listInternships` | Liste ce qui existe déjà : pistes en attente (`location: "inbox"`, avec leur `kind` `ADVERTISED` ou `SPONTANEOUS`) et opportunités suivies (`location: "opportunities"`), avec filtres `query` / `status` / `kind` / `limit`. Sert à vérifier les doublons. |
+| `convertLead` | Convertit une piste de **Pistes** en opportunité suivie (statut *Sauvegardée*) et renvoie l'`applicationId` créé. |
+| `discardLead` | Écarte une piste sans la convertir. |
+| `listApplications` | Liste les **opportunités suivies** avec les champs utiles pour choisir sur quoi travailler : `statusKey` stable, entreprise, poste, URL, type, `matchScore`, deadline, prochaine action, et présence d'une lettre / d'un CV généré. Filtres `query` / `status` / `hasCoverLetter` / `hasCv` / `limit`. |
+| `getApplicationPack` | Renvoie **tout le nécessaire pour postuler** : l'opportunité, l'analyse de l'offre, le **bloc candidat** prêt pour un formulaire (nom, email, téléphone, liens, formation, langues, disponibilité, autorisation de travail) et les chemins de téléchargement du CV et de la lettre (`/api/cv/<id>/pdf`, `/api/cover-letter/<id>/pdf`). |
+| `listPipelineStages` | Liste les statuts valides (clé + libellé), pour choisir une valeur acceptée par `setApplicationStatus`. |
+| `setApplicationStatus` | Déplace une opportunité de statut, par **clé** (`SAVED`, `APPLIED`…) ou **libellé** (`Sauvegardée`, `Envoyée`…). Même logique que l'interface (journal d'activité inclus). |
+| `markApplicationSent` | Marque comme **Envoyée** : date d'envoi, relance automatique selon `followUpRuleDays`, événement dans la timeline. |
+| `appendApplicationNote` | Ajoute une note horodatée et, si fournis, met à jour la prochaine action et sa date. |
+| `generateCoverLetter` | Génère / régénère la **lettre de motivation** via l'IA de l'app (`tone`, `language`) et renvoie le contenu + les liens PDF/DOCX. |
+| `generateCv` | Génère / régénère le **CV personnalisé** pour l'offre via l'IA de l'app, puis le trie pour tenir sur une page ; renvoie les liens PDF/DOCX. |
+| `getCandidateProfile` | Renvoie le profil candidat tel qu'un formulaire externe en a besoin (identité, contact, liens, formation, expériences, compétences, langues, disponibilité, autorisation de travail). Ne contient jamais la lettre de référence ni le texte brut du CV. |
 
 ## Suivi sur le site
 
