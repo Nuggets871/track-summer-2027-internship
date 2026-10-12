@@ -1,6 +1,9 @@
 FROM node:22-alpine AS dependencies
 
 WORKDIR /app
+# Playwright is a dev-only automation dependency; never download its browsers
+# inside the image (it is excluded from the runtime stage anyway).
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./
 COPY prisma/schema.prisma ./prisma/schema.prisma
 RUN npm ci
