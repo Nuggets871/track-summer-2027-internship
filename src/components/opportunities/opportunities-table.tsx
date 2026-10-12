@@ -46,7 +46,7 @@ export function OpportunitiesTable({
   const [dateField, setDateField] = useState<"createdAt" | "updatedAt">("updatedAt");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [sort, setSort] = useState<ApplicationSortKey>("match");
+  const [sort, setSort] = useState<ApplicationSortKey>("updatedAt");
   const [direction, setDirection] = useState<"asc" | "desc">("desc");
   const [, startTransition] = useTransition();
 
