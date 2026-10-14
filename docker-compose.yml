@@ -49,8 +49,14 @@ services:
       - "traefik.http.middlewares.track-internship-security.headers.stsseconds=31536000"
       - "traefik.http.middlewares.track-internship-security.headers.stsincludesubdomains=true"
       - "traefik.http.middlewares.track-internship-security.headers.contenttypenosniff=true"
-      - "traefik.http.middlewares.track-internship-security.headers.framedeny=true"
       - "traefik.http.middlewares.track-internship-security.headers.referrerpolicy=no-referrer"
+      # The in-app PDF viewer embeds /api/cv/... and /api/cover-letter/... in an
+      # <iframe>. `frameDeny` blocks that too, so Firefox refuses to display the
+      # CV or the cover letter ("ne permettra pas à Firefox d'afficher la page si
+      # celle-ci est intégrée par un autre site"). SAMEORIGIN keeps cross-site
+      # framing blocked — the clickjacking protection that matters — while
+      # letting the dashboard embed its own PDF endpoints.
+      - "traefik.http.middlewares.track-internship-security.headers.framesameorigin=true"
 
       - "traefik.http.routers.track-internship-http.rule=Host(`track-internship.christopher-bondier.com`)"
       - "traefik.http.routers.track-internship-http.entrypoints=web"
