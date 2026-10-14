@@ -7,6 +7,10 @@ export const applicationListInclude = {
   city: true,
   status: true,
   jobAnalysis: { select: { matchScore: true, eligibilityStatus: true, analyzedAt: true, profileUpdatedAtSnapshot: true } },
+  // Only the ids are needed: the list shows whether a tailored CV / cover
+  // letter exists so the viewer buttons can be enabled, not their content.
+  generatedCv: { select: { id: true } },
+  coverLetter: { select: { id: true } },
 } satisfies Prisma.ApplicationInclude;
 
 export type ApplicationWithRelations = Prisma.ApplicationGetPayload<{ include: typeof applicationListInclude }>;
